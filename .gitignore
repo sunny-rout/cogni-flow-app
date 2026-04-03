@@ -1,0 +1,10 @@
+.env
+.adk
+.venv
+__pycache__/
+gcp-oauth.keys.json
+*.token.json
+*.pptx
+*.pdf
+*.png
+*.json
