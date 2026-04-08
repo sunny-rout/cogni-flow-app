@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { useSession } from '../contexts/SessionContext';
-import { supabase } from '../lib/supabase';
+import { storage } from '../lib/storage';
 import { sendMessage } from '../lib/messaging';
 import { useToast } from '../hooks/useToast';
-import type { DbEvent } from '../lib/supabase';
+import type { Event } from '../lib/storage';
 
 type FilterType = 'upcoming' | 'all';
 
 export default function Events() {
   const { userId, sessionId } = useSession();
   const { showToast, ToastContainer } = useToast();
-  const [events, setEvents] = useState<DbEvent[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [filter, setFilter] = useState<FilterType>('upcoming');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<DbEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -32,16 +32,8 @@ export default function Events() {
     setIsLoading(true);
     try {
       await sendMessage(userId, sessionId, 'List all upcoming events');
-
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('user_id', userId)
-        .order('start_time', { ascending: true });
-
-      if (!error && data) {
-        setEvents(data);
-      }
+      const allEvents = storage.events.getAll(userId);
+      setEvents(allEvents);
     } catch (error) {
       console.error('Failed to load events:', error);
     } finally {
@@ -49,7 +41,7 @@ export default function Events() {
     }
   };
 
-  const openModal = (event?: DbEvent) => {
+  const openModal = (event?: Event) => {
     if (event) {
       setEditingEvent(event);
       setFormData({
@@ -96,16 +88,13 @@ export default function Events() {
 
         await sendMessage(userId, sessionId, message);
 
-        await supabase
-          .from('events')
-          .update({
-            title: formData.title,
-            description: formData.description,
-            start_time: formData.start_time,
-            end_time: formData.end_time || null,
-            location: formData.location,
-          })
-          .eq('id', editingEvent.id);
+        storage.events.update(editingEvent.id, {
+          title: formData.title,
+          description: formData.description,
+          start_time: formData.start_time,
+          end_time: formData.end_time || null,
+          location: formData.location,
+        });
 
         showToast('Event updated!', 'success');
       } else {
@@ -113,21 +102,21 @@ export default function Events() {
 
         await sendMessage(userId, sessionId, message);
 
-        await supabase
-          .from('events')
-          .insert({
-            user_id: userId,
-            title: formData.title,
-            description: formData.description,
-            start_time: formData.start_time,
-            end_time: formData.end_time || null,
-            location: formData.location,
-          });
+        storage.events.create({
+          id: crypto.randomUUID(),
+          user_id: userId,
+          title: formData.title,
+          description: formData.description,
+          start_time: formData.start_time,
+          end_time: formData.end_time || null,
+          location: formData.location,
+          created_at: new Date().toISOString(),
+        });
 
         showToast('Event created!', 'success');
       }
 
-      await loadEvents();
+      loadEvents();
       closeModal();
     } catch (error) {
       showToast('Failed to save event', 'error');
@@ -136,15 +125,15 @@ export default function Events() {
     }
   };
 
-  const handleDelete = async (event: DbEvent) => {
+  const handleDelete = async (event: Event) => {
     if (!confirm('Are you sure you want to delete this event?')) return;
 
     setIsLoading(true);
 
     try {
       await sendMessage(userId, sessionId, `Delete event "${event.title}"`);
-      await supabase.from('events').delete().eq('id', event.id);
-      await loadEvents();
+      storage.events.delete(event.id);
+      loadEvents();
       showToast('Event deleted!', 'success');
     } catch (error) {
       showToast('Failed to delete event', 'error');

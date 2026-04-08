@@ -2,14 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { useSession } from '../contexts/SessionContext';
 import { streamChat, createSession } from '../api/cogniflow';
-import { supabase } from '../lib/supabase';
-import type { DbSession, DbMessage } from '../lib/supabase';
+import { storage } from '../lib/storage';
+import type { Session, Message } from '../lib/storage';
 
 export default function Chat() {
   const { userId, sessionId, createNewSession } = useSession();
-  const [sessions, setSessions] = useState<DbSession[]>([]);
-  const [currentSession, setCurrentSession] = useState<DbSession | null>(null);
-  const [messages, setMessages] = useState<DbMessage[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentSession, setCurrentSession] = useState<Session | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState('');
@@ -34,59 +34,39 @@ export default function Chat() {
     }
   }, [currentSession]);
 
-  const loadSessions = async () => {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
-
-    if (!error && data) {
-      setSessions(data);
-    }
+  const loadSessions = () => {
+    const allSessions = storage.sessions.getAll(userId);
+    setSessions(allSessions);
   };
 
   const initializeSession = async () => {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .maybeSingle();
+    let session = storage.sessions.getById(sessionId);
 
-    if (error || !data) {
-      const { data: newSession, error: createError } = await supabase
-        .from('sessions')
-        .insert({ id: sessionId, user_id: userId, title: 'New Session' })
-        .select()
-        .single();
-
-      if (!createError && newSession) {
-        setCurrentSession(newSession);
-        await createSession(userId, sessionId);
-      }
-    } else {
-      setCurrentSession(data);
+    if (!session) {
+      session = storage.sessions.create({
+        id: sessionId,
+        user_id: userId,
+        title: 'New Session',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      await createSession(userId, sessionId);
     }
+
+    setCurrentSession(session);
   };
 
-  const loadMessages = async (sessId: string) => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('session_id', sessId)
-      .order('created_at', { ascending: true });
-
-    if (!error && data) {
-      setMessages(data);
-    }
+  const loadMessages = (sessId: string) => {
+    const sessionMessages = storage.messages.getBySession(sessId);
+    setMessages(sessionMessages);
   };
 
-  const handleNewSession = async () => {
+  const handleNewSession = () => {
     createNewSession();
     window.location.reload();
   };
 
-  const switchSession = async (session: DbSession) => {
+  const switchSession = (session: Session) => {
     setCurrentSession(session);
     localStorage.setItem('cogniflow_session_id', session.id);
     window.location.reload();
@@ -100,24 +80,20 @@ export default function Chat() {
     setIsLoading(true);
     setStreamingText('');
 
-    const { data: userMsg } = await supabase
-      .from('messages')
-      .insert({
-        session_id: currentSession.id,
-        role: 'user',
-        content: userMessageContent,
-      })
-      .select()
-      .single();
+    const userMsg = storage.messages.create({
+      id: crypto.randomUUID(),
+      session_id: currentSession.id,
+      role: 'user',
+      content: userMessageContent,
+      agent_name: null,
+      created_at: new Date().toISOString(),
+    });
 
-    if (userMsg) {
-      setMessages((prev) => [...prev, userMsg]);
-    }
+    setMessages((prev) => [...prev, userMsg]);
 
-    await supabase
-      .from('sessions')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', currentSession.id);
+    storage.sessions.update(currentSession.id, {
+      updated_at: new Date().toISOString(),
+    });
 
     let fullResponse = '';
     let detectedAgent = '';
@@ -149,20 +125,16 @@ export default function Chat() {
       );
 
       if (fullResponse) {
-        const { data: modelMsg } = await supabase
-          .from('messages')
-          .insert({
-            session_id: currentSession.id,
-            role: 'model',
-            content: fullResponse,
-            agent_name: detectedAgent || null,
-          })
-          .select()
-          .single();
+        const modelMsg = storage.messages.create({
+          id: crypto.randomUUID(),
+          session_id: currentSession.id,
+          role: 'model',
+          content: fullResponse,
+          agent_name: detectedAgent || null,
+          created_at: new Date().toISOString(),
+        });
 
-        if (modelMsg) {
-          setMessages((prev) => [...prev, modelMsg]);
-        }
+        setMessages((prev) => [...prev, modelMsg]);
       }
     } catch (error) {
       console.error('Failed to send message:', error);

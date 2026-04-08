@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { useSession } from '../contexts/SessionContext';
-import { supabase } from '../lib/supabase';
-import { streamChat } from '../api/cogniflow';
-import type { DbTask } from '../lib/supabase';
+import { storage } from '../lib/storage';
+import { sendMessage } from '../lib/messaging';
+import type { Task } from '../lib/storage';
 
 type FilterType = 'all' | 'pending' | 'in_progress' | 'done';
 
 export default function Tasks() {
   const { userId, sessionId } = useSession();
-  const [tasks, setTasks] = useState<DbTask[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<DbTask | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -26,20 +26,12 @@ export default function Tasks() {
     loadTasks();
   }, []);
 
-  const loadTasks = async () => {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setTasks(data);
-    }
+  const loadTasks = () => {
+    const allTasks = storage.tasks.getAll(userId);
+    setTasks(allTasks);
   };
 
-
-  const openModal = (task?: DbTask) => {
+  const openModal = (task?: Task) => {
     if (task) {
       setEditingTask(task);
       setFormData({
@@ -81,60 +73,34 @@ export default function Tasks() {
       if (editingTask) {
         const message = `Update task "${editingTask.title}" set title to "${formData.title}", description to "${formData.description}", priority to ${formData.priority}${formData.due_date ? `, due date to ${formData.due_date}` : ''}`;
 
-        await streamChat(
-          {
-            app_name: 'multi_agent_app',
-            user_id: userId,
-            session_id: sessionId,
-            new_message: {
-              role: 'user',
-              parts: [{ text: message }],
-            },
-          },
-          () => {},
-          (error) => console.error('Stream error:', error)
-        );
+        await sendMessage(userId, sessionId, message);
 
-        await supabase
-          .from('tasks')
-          .update({
-            title: formData.title,
-            description: formData.description,
-            priority: formData.priority,
-            due_date: formData.due_date || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingTask.id);
+        storage.tasks.update(editingTask.id, {
+          title: formData.title,
+          description: formData.description,
+          priority: formData.priority,
+          due_date: formData.due_date || null,
+          updated_at: new Date().toISOString(),
+        });
       } else {
         const message = `Create a task: ${formData.title}, priority ${formData.priority}${formData.due_date ? `, due ${formData.due_date}` : ''}${formData.description ? `, description: ${formData.description}` : ''}`;
 
-        await streamChat(
-          {
-            app_name: 'multi_agent_app',
-            user_id: userId,
-            session_id: sessionId,
-            new_message: {
-              role: 'user',
-              parts: [{ text: message }],
-            },
-          },
-          () => {},
-          (error) => console.error('Stream error:', error)
-        );
+        await sendMessage(userId, sessionId, message);
 
-        await supabase
-          .from('tasks')
-          .insert({
-            user_id: userId,
-            title: formData.title,
-            description: formData.description,
-            priority: formData.priority,
-            due_date: formData.due_date || null,
-            status: 'pending',
-          });
+        storage.tasks.create({
+          id: crypto.randomUUID(),
+          user_id: userId,
+          title: formData.title,
+          description: formData.description,
+          priority: formData.priority,
+          due_date: formData.due_date || null,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
       }
 
-      await loadTasks();
+      loadTasks();
       closeModal();
     } catch (error) {
       console.error('Failed to save task:', error);
@@ -143,28 +109,15 @@ export default function Tasks() {
     }
   };
 
-  const handleDelete = async (task: DbTask) => {
+  const handleDelete = async (task: Task) => {
     if (!confirm('Are you sure you want to delete this task?')) return;
 
     setIsLoading(true);
 
     try {
-      await streamChat(
-        {
-          app_name: 'multi_agent_app',
-          user_id: userId,
-          session_id: sessionId,
-          new_message: {
-            role: 'user',
-            parts: [{ text: `Delete task "${task.title}"` }],
-          },
-        },
-        () => {},
-        (error) => console.error('Stream error:', error)
-      );
-
-      await supabase.from('tasks').delete().eq('id', task.id);
-      await loadTasks();
+      await sendMessage(userId, sessionId, `Delete task "${task.title}"`);
+      storage.tasks.delete(task.id);
+      loadTasks();
     } catch (error) {
       console.error('Failed to delete task:', error);
     } finally {
@@ -172,23 +125,21 @@ export default function Tasks() {
     }
   };
 
-  const updateTaskStatus = async (task: DbTask, newStatus: 'pending' | 'in_progress' | 'done') => {
-    await supabase
-      .from('tasks')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', task.id);
-
-    await loadTasks();
+  const updateTaskStatus = (task: Task, newStatus: 'pending' | 'in_progress' | 'done') => {
+    storage.tasks.update(task.id, {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    });
+    loadTasks();
   };
 
-  const filteredTasks = tasks
-    .filter((task) => {
-      if (filter !== 'all' && task.status !== filter) return false;
-      if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false;
-      }
-      return true;
-    });
+  const filteredTasks = tasks.filter((task) => {
+    if (filter !== 'all' && task.status !== filter) return false;
+    if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
 
   const stats = {
     all: tasks.length,
@@ -199,19 +150,27 @@ export default function Tasks() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'border-l-orange-500';
-      case 'medium': return 'border-l-yellow-500';
-      case 'low': return 'border-l-green-500';
-      default: return 'border-l-slate-500';
+      case 'high':
+        return 'border-l-orange-500';
+      case 'medium':
+        return 'border-l-yellow-500';
+      case 'low':
+        return 'border-l-green-500';
+      default:
+        return 'border-l-slate-500';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-slate-700 text-slate-300';
-      case 'in_progress': return 'bg-teal-700 text-teal-100';
-      case 'done': return 'bg-green-700 text-green-100';
-      default: return 'bg-slate-700 text-slate-300';
+      case 'pending':
+        return 'bg-slate-700 text-slate-300';
+      case 'in_progress':
+        return 'bg-teal-700 text-teal-100';
+      case 'done':
+        return 'bg-green-700 text-green-100';
+      default:
+        return 'bg-slate-700 text-slate-300';
     }
   };
 

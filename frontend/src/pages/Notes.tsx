@@ -1,19 +1,10 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { useSession } from '../contexts/SessionContext';
-import { supabase } from '../lib/supabase';
+import { storage } from '../lib/storage';
 import { sendMessage } from '../lib/messaging';
 import { useToast } from '../hooks/useToast';
-
-interface Note {
-  id: string;
-  user_id: string;
-  title: string;
-  content: string;
-  tags: string[];
-  created_at: string;
-  updated_at: string;
-}
+import type { Note } from '../lib/storage';
 
 export default function Notes() {
   const { userId, sessionId } = useSession();
@@ -33,16 +24,9 @@ export default function Notes() {
     loadNotes();
   }, []);
 
-  const loadNotes = async () => {
-    const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
-
-    if (!error && data) {
-      setNotes(data);
-    }
+  const loadNotes = () => {
+    const allNotes = storage.notes.getAll(userId);
+    setNotes(allNotes);
   };
 
   const handleSearch = async () => {
@@ -54,17 +38,8 @@ export default function Notes() {
     setIsLoading(true);
     try {
       await sendMessage(userId, sessionId, `Search notes with keyword ${searchQuery}`);
-
-      const { data } = await supabase
-        .from('notes')
-        .select('*')
-        .eq('user_id', userId)
-        .or(`title.ilike.%${searchQuery}%,content.ilike.%${searchQuery}%`)
-        .order('updated_at', { ascending: false });
-
-      if (data) {
-        setNotes(data);
-      }
+      const searchResults = storage.notes.search(userId, searchQuery);
+      setNotes(searchResults);
     } catch (error) {
       showToast('Failed to search notes', 'error');
     } finally {
@@ -118,15 +93,12 @@ export default function Notes() {
 
         await sendMessage(userId, sessionId, message);
 
-        await supabase
-          .from('notes')
-          .update({
-            title: formData.title,
-            content: formData.content,
-            tags: tagsArray,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingNote.id);
+        storage.notes.update(editingNote.id, {
+          title: formData.title,
+          content: formData.content,
+          tags: tagsArray,
+          updated_at: new Date().toISOString(),
+        });
 
         showToast('Note updated!', 'success');
       } else {
@@ -134,19 +106,20 @@ export default function Notes() {
 
         await sendMessage(userId, sessionId, message);
 
-        await supabase
-          .from('notes')
-          .insert({
-            user_id: userId,
-            title: formData.title,
-            content: formData.content,
-            tags: tagsArray,
-          });
+        storage.notes.create({
+          id: crypto.randomUUID(),
+          user_id: userId,
+          title: formData.title,
+          content: formData.content,
+          tags: tagsArray,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
 
         showToast('Note created!', 'success');
       }
 
-      await loadNotes();
+      loadNotes();
       closeModal();
     } catch (error) {
       showToast('Failed to save note', 'error');
@@ -162,8 +135,8 @@ export default function Notes() {
 
     try {
       await sendMessage(userId, sessionId, `Delete note titled "${note.title}"`);
-      await supabase.from('notes').delete().eq('id', note.id);
-      await loadNotes();
+      storage.notes.delete(note.id);
+      loadNotes();
       showToast('Note deleted!', 'success');
     } catch (error) {
       showToast('Failed to delete note', 'error');
