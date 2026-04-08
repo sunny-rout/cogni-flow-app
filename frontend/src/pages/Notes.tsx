@@ -1,218 +1,331 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
-import type { Note } from '../types';
+import { useSession } from '../contexts/SessionContext';
+import { supabase } from '../lib/supabase';
+import { sendMessage } from '../lib/messaging';
+import { useToast } from '../hooks/useToast';
+
+interface Note {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
 
 export default function Notes() {
+  const { userId, sessionId } = useSession();
+  const { showToast, ToastContainer } = useToast();
   const [notes, setNotes] = useState<Note[]>([]);
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    tags: '',
+  });
 
   useEffect(() => {
-    const stored = localStorage.getItem('cogniflow_notes');
-    if (stored) {
-      setNotes(JSON.parse(stored));
-    }
+    loadNotes();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('cogniflow_notes', JSON.stringify(notes));
-  }, [notes]);
+  const loadNotes = async () => {
+    const { data, error } = await supabase
+      .from('notes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
 
-  const createNote = () => {
-    const newNote: Note = {
-      id: Date.now().toString(),
-      title: 'Untitled Note',
-      content: '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    setNotes((prev) => [...prev, newNote]);
-    setSelectedNote(newNote);
-    setIsEditing(true);
-    setEditTitle(newNote.title);
-    setEditContent(newNote.content);
-  };
-
-  const saveNote = () => {
-    if (!selectedNote) return;
-
-    setNotes((prev) =>
-      prev.map((note) =>
-        note.id === selectedNote.id
-          ? {
-              ...note,
-              title: editTitle,
-              content: editContent,
-              updated_at: new Date().toISOString(),
-            }
-          : note
-      )
-    );
-
-    setSelectedNote({
-      ...selectedNote,
-      title: editTitle,
-      content: editContent,
-      updated_at: new Date().toISOString(),
-    });
-
-    setIsEditing(false);
-  };
-
-  const deleteNote = (id: string) => {
-    setNotes((prev) => prev.filter((note) => note.id !== id));
-    if (selectedNote?.id === id) {
-      setSelectedNote(null);
-      setIsEditing(false);
+    if (!error && data) {
+      setNotes(data);
     }
   };
 
-  const startEditing = (note: Note) => {
-    setSelectedNote(note);
-    setEditTitle(note.title);
-    setEditContent(note.content);
-    setIsEditing(true);
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadNotes();
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await sendMessage(userId, sessionId, `Search notes with keyword ${searchQuery}`);
+
+      const { data } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('user_id', userId)
+        .or(`title.ilike.%${searchQuery}%,content.ilike.%${searchQuery}%`)
+        .order('updated_at', { ascending: false });
+
+      if (data) {
+        setNotes(data);
+      }
+    } catch (error) {
+      showToast('Failed to search notes', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const cancelEditing = () => {
-    setIsEditing(false);
-    if (selectedNote) {
-      setEditTitle(selectedNote.title);
-      setEditContent(selectedNote.content);
+  const openModal = (note?: Note) => {
+    if (note) {
+      setEditingNote(note);
+      setFormData({
+        title: note.title,
+        content: note.content,
+        tags: note.tags?.join(', ') || '',
+      });
+    } else {
+      setEditingNote(null);
+      setFormData({
+        title: '',
+        content: '',
+        tags: '',
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingNote(null);
+    setFormData({
+      title: '',
+      content: '',
+      tags: '',
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.title.trim()) return;
+
+    setIsLoading(true);
+
+    try {
+      const tagsArray = formData.tags
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t);
+
+      if (editingNote) {
+        const message = `Update note titled "${editingNote.title}" set title to "${formData.title}", content to "${formData.content}", tags to ${tagsArray.join(', ')}`;
+
+        await sendMessage(userId, sessionId, message);
+
+        await supabase
+          .from('notes')
+          .update({
+            title: formData.title,
+            content: formData.content,
+            tags: tagsArray,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingNote.id);
+
+        showToast('Note updated!', 'success');
+      } else {
+        const message = `Create a note titled ${formData.title} with content ${formData.content} tags ${tagsArray.join(', ')}`;
+
+        await sendMessage(userId, sessionId, message);
+
+        await supabase
+          .from('notes')
+          .insert({
+            user_id: userId,
+            title: formData.title,
+            content: formData.content,
+            tags: tagsArray,
+          });
+
+        showToast('Note created!', 'success');
+      }
+
+      await loadNotes();
+      closeModal();
+    } catch (error) {
+      showToast('Failed to save note', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (note: Note) => {
+    if (!confirm('Are you sure you want to delete this note?')) return;
+
+    setIsLoading(true);
+
+    try {
+      await sendMessage(userId, sessionId, `Delete note titled "${note.title}"`);
+      await supabase.from('notes').delete().eq('id', note.id);
+      await loadNotes();
+      showToast('Note deleted!', 'success');
+    } catch (error) {
+      showToast('Failed to delete note', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <Layout title="Notes">
-      <div className="flex h-full">
-        <div className="w-80 border-r border-slate-800 bg-slate-900 overflow-auto">
-          <div className="p-4">
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="mb-6 flex gap-3 items-center">
+          <div className="flex-1 flex gap-2">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="Search notes..."
+              className="flex-1 px-4 py-2 bg-slate-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+            />
             <button
-              onClick={createNote}
-              className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+              onClick={handleSearch}
+              disabled={isLoading}
+              className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
             >
-              + New Note
+              Search
             </button>
           </div>
-
-          <div className="px-2">
-            {notes.length === 0 ? (
-              <div className="text-center text-slate-500 py-8 px-4">
-                <div className="text-4xl mb-2">📝</div>
-                <p className="text-sm">No notes yet</p>
-              </div>
-            ) : (
-              notes.map((note) => (
-                <div
-                  key={note.id}
-                  onClick={() => {
-                    setSelectedNote(note);
-                    setIsEditing(false);
-                  }}
-                  className={`p-3 mb-2 rounded-lg cursor-pointer transition-colors ${
-                    selectedNote?.id === note.id
-                      ? 'bg-slate-800'
-                      : 'hover:bg-slate-800'
-                  }`}
-                >
-                  <div className="font-medium text-white truncate">{note.title}</div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {new Date(note.updated_at).toLocaleDateString()}
-                  </div>
-                  <div className="text-sm text-slate-400 mt-1 line-clamp-2">
-                    {note.content || 'No content'}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          <button
+            onClick={() => openModal()}
+            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors whitespace-nowrap"
+          >
+            + New Note
+          </button>
         </div>
 
-        <div className="flex-1 flex flex-col">
-          {selectedNote ? (
-            <>
-              <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900">
-                <div className="text-sm text-slate-400">
-                  Last updated: {new Date(selectedNote.updated_at).toLocaleString()}
-                </div>
-                <div className="flex gap-2">
-                  {isEditing ? (
-                    <>
-                      <button
-                        onClick={cancelEditing}
-                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={saveNote}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                      >
-                        Save
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => startEditing(selectedNote)}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deleteNote(selectedNote.id)}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
-                </div>
+        {isLoading && notes.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-slate-800 rounded-lg p-4 animate-pulse">
+                <div className="h-6 bg-slate-700 rounded w-3/4 mb-3"></div>
+                <div className="h-4 bg-slate-700 rounded w-full mb-2"></div>
+                <div className="h-4 bg-slate-700 rounded w-5/6"></div>
               </div>
-
-              <div className="flex-1 p-6 overflow-auto">
-                {isEditing ? (
-                  <div className="max-w-4xl mx-auto space-y-4">
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      className="w-full px-4 py-3 text-2xl font-bold bg-slate-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
-                      placeholder="Note title"
-                    />
-                    <textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full h-96 px-4 py-3 bg-slate-800 text-white rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-600"
-                      placeholder="Start writing..."
-                    />
+            ))}
+          </div>
+        ) : notes.length === 0 ? (
+          <div className="text-center text-slate-500 py-12">
+            <div className="text-6xl mb-3">📝</div>
+            <p className="text-lg">No notes found</p>
+            <p className="text-sm mt-2">Create your first note to get started</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {notes.map((note) => (
+              <div
+                key={note.id}
+                className="bg-slate-800 rounded-lg p-4 hover:bg-slate-750 transition-colors"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="text-lg font-bold text-white flex-1">{note.title}</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openModal(note)}
+                      className="text-slate-400 hover:text-purple-400 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(note)}
+                      className="text-slate-400 hover:text-red-400 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
-                ) : (
-                  <div className="max-w-4xl mx-auto">
-                    <h2 className="text-3xl font-bold text-white mb-6">
-                      {selectedNote.title}
-                    </h2>
-                    <div className="text-slate-300 whitespace-pre-wrap">
-                      {selectedNote.content || (
-                        <span className="text-slate-500 italic">No content</span>
-                      )}
-                    </div>
+                </div>
+                <p className="text-slate-400 text-sm mb-3 line-clamp-2">
+                  {note.content || 'No content'}
+                </p>
+                {note.tags && note.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {note.tags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-1 bg-green-700 text-green-100 rounded text-xs font-medium"
+                      >
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-500">
-              <div className="text-center">
-                <div className="text-6xl mb-4">📝</div>
-                <p className="text-lg">Select a note or create a new one</p>
-              </div>
+            ))}
+          </div>
+        )}
+
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-lg p-6 max-w-2xl w-full">
+              <h2 className="text-xl font-semibold text-white mb-4">
+                {editingNote ? 'Edit Note' : 'New Note'}
+              </h2>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Title *</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Content</label>
+                  <textarea
+                    value={formData.content}
+                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    rows={6}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    value={formData.tags}
+                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                    placeholder="work, ideas, personal"
+                    className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-700 text-white rounded-lg transition-colors"
+                  >
+                    {isLoading ? 'Saving...' : editingNote ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        <ToastContainer />
       </div>
     </Layout>
   );
