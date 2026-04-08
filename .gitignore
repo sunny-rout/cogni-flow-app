@@ -7,5 +7,5 @@ gcp-oauth.keys.json
 *.pptx
 *.pdf
 *.png
-*.json
+cogni_flow_app/*.json
 # .gcloudignore
