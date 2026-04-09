@@ -47,14 +47,18 @@ frontend/
 ### Chat Flow (Agent-based)
 
 ```
-User Input → Chat.tsx
-  ↓ (sendMessage)
-POST /run_sse → Backend
-  ↓ (Google ADK Runner)
-Root Agent → Sub-Agent (task/schedule/notes)
-  ↓ (storage tool)
+User Input -> Chat.tsx
+  | (sendMessage)
+  v
+POST /run_sse -> Backend
+  | (Google ADK Runner)
+  v
+Root Agent -> Sub-Agent (task/schedule/notes)
+  | (storage tool)
+  v
 JSON File (data/)
-  ↓ (SSE stream)
+  | (SSE stream)
+  v
 Frontend displays streaming response
 ```
 
@@ -62,72 +66,32 @@ Frontend displays streaming response
 
 ```
 User Action (create/update/delete)
-  ↓
+  |
+  v
 Page Component (Tasks.tsx / Notes.tsx / Events.tsx)
-  ↓
+  |
+  v
 API Call (getTasks, createNote, etc.)
-  ↓
+  |
+  v
 GET/POST/PATCH/DELETE /api/{entity}
-  ↓
+  |
+  v
 FastAPI Endpoint
-  ↓
+  |
+  v
 storage/tools.py functions
-  ↓
+  |
+  v
 data/{entity}.json
-  ↓
+  |
+  v
 Frontend state updated
 ```
 
 ### Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Frontend (React)                         │
-├─────────────┬─────────────┬─────────────┬───────────────────────┤
-│  Chat.tsx   │ Tasks.tsx   │ Notes.tsx   │ Events.tsx            │
-│  (SSE)      │ (REST API)  │ (REST API)  │ (REST API)            │
-└──────┬──────┴──────┬──────┴──────┬──────┴───────────┬─────────────┘
-       │             │             │                 │
-       │             │             │                 │
-       ▼             ▼             ▼                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    API Layer (cogniflow.ts)                     │
-│  streamChat()  │  getTasks()  │  getNotes()  │  getEvents()    │
-└────────────────────────────────┬────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                 Backend Server (server.py + FastAPI)             │
-│                                                                  │
-│  ┌──────────────┐     ┌──────────────────────────────────────┐  │
-│  │  /run_sse    │     │        REST API Endpoints            │  │
-│  │  (Streaming) │     │  GET/POST/PATCH/DELETE /api/tasks   │  │
-│  └──────┬───────┘     │  GET/POST/PATCH/DELETE /api/notes    │  │
-│         │             │  GET/POST/PATCH/DELETE /api/events   │  │
-│         ▼             └───────────────────┬──────────────────┘  │
-│  ┌────────────────────────────┐           │                     │
-│  │    Google ADK Runner        │           │                     │
-│  │                            │           ▼                     │
-│  │  ┌──────────────────────┐  │  ┌─────────────────────────┐   │
-│  │  │    Root Agent        │  │  │    Storage Layer        │   │
-│  │  │  (Routes to sub-    │  │  │  (tools.py + store.py)  │   │
-│  │  │   agents)            │  │  └────────────┬──────────┘   │
-│  │  └──────────┬─────────┘  │               │               │
-│  │             │            │               ▼               │
-│  │  ┌──────────┼─────────┐  │  ┌─────────────────────────┐   │
-│  │  │          │         │  │  │    JSON Files           │   │
-│  │  ▼          ▼         ▼  │  │  tasks.json             │   │
-│  │ task_     schedule_  notes │  │  notes.json            │   │
-│  │ agent     _agent    _agent │  │  events.json           │   │
-│  └──────────────┼─────────────┘  └─────────────────────────┘   │
-└─────────────────┼──────────────────────────────────────────────┘
-                  │
-                  ▼
-         ┌─────────────────┐
-         │  Google ADK     │
-         │  (Gemini API)  │
-         └─────────────────┘
-```
+<img src="..\images\AI-powered-architecture-diagram.png" alt="AI-powered-architecture-diagram">
 
 ## Prerequisites
 
@@ -356,7 +320,7 @@ app.add_middleware(
 
 ### Network Inspection
 
-Open browser DevTools → Network tab to inspect:
+Open browser DevTools -> Network tab to inspect:
 - API requests to `/api/*`
 - SSE connections to `/run_sse`
 - Response status codes
