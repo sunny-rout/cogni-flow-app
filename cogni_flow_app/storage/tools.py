@@ -52,7 +52,7 @@ def search_tasks(keyword: str) -> list:
     return results
 
 def update_task(task_id: int, title: str = None, description: str = None,
-                priority: str = None, due_date: str = None) -> dict:
+                priority: str = None, due_date: str = None, status: str = None) -> dict:
     """Update task fields."""
     tasks = _read("tasks")
     for task in tasks:
@@ -61,6 +61,7 @@ def update_task(task_id: int, title: str = None, description: str = None,
             if description: task["description"] = description
             if priority: task["priority"] = priority
             if due_date: task["due_date"] = due_date
+            if status: task["status"] = status
             task["updated_at"] = datetime.now().isoformat()
             _write("tasks", tasks)
             logger.info(f"Task {task_id} updated")
@@ -181,12 +182,12 @@ def search_events(keyword: str) -> list:
     return results
 
 def list_events(from_date: str = None) -> list:
-    """List upcoming events from a given date (defaults to now)."""
+    """List events, optionally filtered by start_time >= from_date."""
     events = _read("events")
-    from_date = from_date or datetime.now().isoformat()
-    results = [e for e in events if e.get("start_time", "") >= from_date]
-    logger.info(f"Listed {len(results)} events from {from_date}")
-    return sorted(results, key=lambda x: x.get("start_time", ""))
+    if from_date:
+        events = [e for e in events if e.get("start_time", "") >= from_date]
+    logger.info(f"Listed {len(events)} events")
+    return sorted(events, key=lambda x: x.get("start_time", ""))
 
 def update_event(event_id: int, title: str = None, description: str = None,
                  start_time: str = None, end_time: str = None,

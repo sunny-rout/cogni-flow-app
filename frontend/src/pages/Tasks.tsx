@@ -1,19 +1,29 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { useSession } from '../contexts/SessionContext';
-import { storage } from '../lib/storage';
-import { sendMessage } from '../lib/messaging';
+import * as api from '../api/cogniflow';
 import type { Task } from '../lib/storage';
 
 type FilterType = 'all' | 'pending' | 'in_progress' | 'done';
 
+interface TaskData {
+  id: number;
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'in_progress' | 'done';
+  due_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function Tasks() {
   const { userId, sessionId } = useSession();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<TaskData[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<TaskData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -26,9 +36,16 @@ export default function Tasks() {
     loadTasks();
   }, []);
 
-  const loadTasks = () => {
-    const allTasks = storage.tasks.getAll(userId);
-    setTasks(allTasks);
+  const loadTasks = async () => {
+    setIsLoading(true);
+    try {
+      const allTasks = await api.getTasks();
+      setTasks(allTasks);
+    } catch (error) {
+      console.error('Failed to load tasks:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const openModal = (task?: Task) => {
@@ -71,33 +88,19 @@ export default function Tasks() {
 
     try {
       if (editingTask) {
-        const message = `Update task "${editingTask.title}" set title to "${formData.title}", description to "${formData.description}", priority to ${formData.priority}${formData.due_date ? `, due date to ${formData.due_date}` : ''}`;
-
-        await sendMessage(userId, sessionId, message);
-
-        storage.tasks.update(editingTask.id, {
+        await api.updateTask(editingTask.id, {
           title: formData.title,
           description: formData.description,
           priority: formData.priority,
-          due_date: formData.due_date || null,
-          updated_at: new Date().toISOString(),
+          due_date: formData.due_date || undefined,
         });
       } else {
-        const message = `Create a task: ${formData.title}, priority ${formData.priority}${formData.due_date ? `, due ${formData.due_date}` : ''}${formData.description ? `, description: ${formData.description}` : ''}`;
-
-        await sendMessage(userId, sessionId, message);
-
-        storage.tasks.create({
-          id: crypto.randomUUID(),
-          user_id: userId,
-          title: formData.title,
-          description: formData.description,
-          priority: formData.priority,
-          due_date: formData.due_date || null,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+        await api.createTask(
+          formData.title,
+          formData.description,
+          formData.priority,
+          formData.due_date || undefined
+        );
       }
 
       loadTasks();
@@ -109,14 +112,13 @@ export default function Tasks() {
     }
   };
 
-  const handleDelete = async (task: Task) => {
+  const handleDelete = async (task: TaskData) => {
     if (!confirm('Are you sure you want to delete this task?')) return;
 
     setIsLoading(true);
 
     try {
-      await sendMessage(userId, sessionId, `Delete task "${task.title}"`);
-      storage.tasks.delete(task.id);
+      await api.deleteTask(task.id);
       loadTasks();
     } catch (error) {
       console.error('Failed to delete task:', error);
@@ -125,12 +127,13 @@ export default function Tasks() {
     }
   };
 
-  const updateTaskStatus = (task: Task, newStatus: 'pending' | 'in_progress' | 'done') => {
-    storage.tasks.update(task.id, {
-      status: newStatus,
-      updated_at: new Date().toISOString(),
-    });
-    loadTasks();
+  const updateTaskStatus = async (task: TaskData, newStatus: 'pending' | 'in_progress' | 'done') => {
+    try {
+      await api.updateTask(task.id, { status: newStatus });
+      loadTasks();
+    } catch (error) {
+      console.error('Failed to update task status:', error);
+    }
   };
 
   const filteredTasks = tasks.filter((task) => {

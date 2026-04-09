@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { useSession } from '../contexts/SessionContext';
-import { storage } from '../lib/storage';
-import { sendMessage } from '../lib/messaging';
+import * as api from '../api/cogniflow';
 import { useToast } from '../hooks/useToast';
-import type { Note } from '../lib/storage';
+
+interface NoteData {
+  id: number;
+  title: string;
+  content: string;
+  tags: string[];
+  created_at: string;
+  updated_at?: string;
+}
 
 export default function Notes() {
   const { userId, sessionId } = useSession();
   const { showToast, ToastContainer } = useToast();
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<NoteData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [editingNote, setEditingNote] = useState<NoteData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -24,9 +31,17 @@ export default function Notes() {
     loadNotes();
   }, []);
 
-  const loadNotes = () => {
-    const allNotes = storage.notes.getAll(userId);
-    setNotes(allNotes);
+  const loadNotes = async () => {
+    setIsLoading(true);
+    try {
+      const allNotes = await api.getNotes();
+      setNotes(allNotes);
+    } catch (error) {
+      console.error('Failed to load notes:', error);
+      showToast('Failed to load notes', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSearch = async () => {
@@ -37,8 +52,7 @@ export default function Notes() {
 
     setIsLoading(true);
     try {
-      await sendMessage(userId, sessionId, `Search notes with keyword ${searchQuery}`);
-      const searchResults = storage.notes.search(userId, searchQuery);
+      const searchResults = await api.searchNotes(searchQuery);
       setNotes(searchResults);
     } catch (error) {
       showToast('Failed to search notes', 'error');
@@ -89,33 +103,14 @@ export default function Notes() {
         .filter((t) => t);
 
       if (editingNote) {
-        const message = `Update note titled "${editingNote.title}" set title to "${formData.title}", content to "${formData.content}", tags to ${tagsArray.join(', ')}`;
-
-        await sendMessage(userId, sessionId, message);
-
-        storage.notes.update(editingNote.id, {
+        await api.updateNote(editingNote.id, {
           title: formData.title,
           content: formData.content,
-          tags: tagsArray,
-          updated_at: new Date().toISOString(),
+          tags: formData.tags,
         });
-
         showToast('Note updated!', 'success');
       } else {
-        const message = `Create a note titled ${formData.title} with content ${formData.content} tags ${tagsArray.join(', ')}`;
-
-        await sendMessage(userId, sessionId, message);
-
-        storage.notes.create({
-          id: crypto.randomUUID(),
-          user_id: userId,
-          title: formData.title,
-          content: formData.content,
-          tags: tagsArray,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-
+        await api.createNote(formData.title, formData.content, formData.tags);
         showToast('Note created!', 'success');
       }
 
@@ -128,14 +123,13 @@ export default function Notes() {
     }
   };
 
-  const handleDelete = async (note: Note) => {
+  const handleDelete = async (note: NoteData) => {
     if (!confirm('Are you sure you want to delete this note?')) return;
 
     setIsLoading(true);
 
     try {
-      await sendMessage(userId, sessionId, `Delete note titled "${note.title}"`);
-      storage.notes.delete(note.id);
+      await api.deleteNote(note.id);
       loadNotes();
       showToast('Note deleted!', 'success');
     } catch (error) {

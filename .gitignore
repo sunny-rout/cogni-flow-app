@@ -8,4 +8,8 @@ gcp-oauth.keys.json
 *.pdf
 *.png
 cogni_flow_app/*.json
+node_modules/
+dist/
+data/
+logs/
 # .gcloudignore

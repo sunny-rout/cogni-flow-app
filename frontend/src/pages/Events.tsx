@@ -1,20 +1,30 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { useSession } from '../contexts/SessionContext';
-import { storage } from '../lib/storage';
 import { sendMessage } from '../lib/messaging';
 import { useToast } from '../hooks/useToast';
-import type { Event } from '../lib/storage';
+import * as api from '../api/cogniflow';
+
+interface EventData {
+  id: number;
+  title: string;
+  description: string;
+  start_time: string;
+  end_time: string | null;
+  location: string;
+  created_at: string;
+  updated_at?: string;
+}
 
 type FilterType = 'upcoming' | 'all';
 
 export default function Events() {
   const { userId, sessionId } = useSession();
   const { showToast, ToastContainer } = useToast();
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<EventData[]>([]);
   const [filter, setFilter] = useState<FilterType>('upcoming');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editingEvent, setEditingEvent] = useState<EventData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -31,11 +41,11 @@ export default function Events() {
   const loadEvents = async () => {
     setIsLoading(true);
     try {
-      await sendMessage(userId, sessionId, 'List all upcoming events');
-      const allEvents = storage.events.getAll(userId);
+      const allEvents = await api.getEvents();
       setEvents(allEvents);
     } catch (error) {
       console.error('Failed to load events:', error);
+      showToast('Failed to load events', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -84,35 +94,22 @@ export default function Events() {
 
     try {
       if (editingEvent) {
-        const message = `Update event "${editingEvent.title}" set title to "${formData.title}", start time ${formData.start_time}, end time ${formData.end_time}, location ${formData.location}, description ${formData.description}`;
-
-        await sendMessage(userId, sessionId, message);
-
-        storage.events.update(editingEvent.id, {
+        await api.updateEvent(editingEvent.id, {
           title: formData.title,
           description: formData.description,
           start_time: formData.start_time,
-          end_time: formData.end_time || null,
+          end_time: formData.end_time || undefined,
           location: formData.location,
         });
-
         showToast('Event updated!', 'success');
       } else {
-        const message = `Create an event ${formData.title} on ${formData.start_time} to ${formData.end_time} at ${formData.location}`;
-
-        await sendMessage(userId, sessionId, message);
-
-        storage.events.create({
-          id: crypto.randomUUID(),
-          user_id: userId,
-          title: formData.title,
-          description: formData.description,
-          start_time: formData.start_time,
-          end_time: formData.end_time || null,
-          location: formData.location,
-          created_at: new Date().toISOString(),
-        });
-
+        await api.createEvent(
+          formData.title,
+          formData.start_time,
+          formData.end_time,
+          formData.description,
+          formData.location
+        );
         showToast('Event created!', 'success');
       }
 
@@ -125,14 +122,13 @@ export default function Events() {
     }
   };
 
-  const handleDelete = async (event: Event) => {
+  const handleDelete = async (event: EventData) => {
     if (!confirm('Are you sure you want to delete this event?')) return;
 
     setIsLoading(true);
 
     try {
-      await sendMessage(userId, sessionId, `Delete event "${event.title}"`);
-      storage.events.delete(event.id);
+      await api.deleteEvent(event.id);
       loadEvents();
       showToast('Event deleted!', 'success');
     } catch (error) {
