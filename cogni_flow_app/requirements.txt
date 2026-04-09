@@ -1,3 +1,4 @@
 google-adk
 langchain-community
 python-dotenv
+python-dateutil
