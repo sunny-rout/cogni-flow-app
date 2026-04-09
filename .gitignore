@@ -12,4 +12,5 @@ node_modules/
 dist/
 data/
 logs/
+!images/*.png
 # .gcloudignore
