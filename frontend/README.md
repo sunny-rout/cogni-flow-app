@@ -4,89 +4,94 @@ A React + TypeScript + Vite frontend for the CogniFlow multi-agent personal assi
 
 ## Overview
 
-CogniFlow is a multi-agent AI assistant that helps manage tasks, notes, events, and provides an interactive chat interface. The frontend communicates with a FastAPI backend that stores data in JSON files.
+CogniFlow is a multi-agent AI assistant that helps manage tasks, notes, events, and provides an interactive chat interface. The frontend communicates with a FastAPI backend and is structured in five distinct layers, from design tokens up to full pages.
 
 ## Features
 
-- **Chat Interface**: Interactive chat with multi-agent support and streaming responses (SSE)
-- **Task Management**: Create, update, delete tasks with priorities and due dates
-- **Notes**: Take and organize notes with tags and search functionality
-- **Events/Schedule**: Manage calendar events with intelligent date parsing
-- **REST API Integration**: Direct API calls to backend for CRUD operations
+- **Chat Interface**: Interactive chat with multi-agent support and live SSE streaming responses
+- **Task Management**: Create, update, delete tasks with priorities, statuses, due dates, and filters
+- **Notes**: Take and organize notes with tags, content previews, and search
+- **Events**: Schedule and manage calendar events with upcoming/all filtering
+- **Toast Notifications**: Success, error, and info toasts on every action
+- **Responsive Layout**: Desktop sidebar + main content; mobile top navbar + bottom tab navigation
+- **Skeleton Loading**: Shimmer placeholders on every page while data loads
+- **Empty States**: Contextual empty state UI when no data exists
 
 ## Architecture
 
+The codebase is organized into five layers:
+
+### Layer 1 — Design Tokens (`src/constants/index.ts`)
+- Color palettes for priorities (`PRIORITY_COLORS`), statuses (`STATUS_COLORS`), and agents (`AGENT_COLORS`)
+- Human-readable label maps (`PRIORITY_LABELS`, `STATUS_LABELS`)
+
+### Layer 2 — Types & Utilities (`src/types/`, `src/utils/`)
+- Shared TypeScript interfaces: `Task`, `Note`, `Event`, `ChatMessage`, `Session`, `ToastMessage`
+- Utility functions: `formatDate`, `formatDateTime`, `truncateText`, `parseTagsFromString`, `getAgentColor`
+
+### Layer 3 — Services & Contexts (`src/services/`, `src/contexts/`, `src/hooks/`)
+- `restClient` — typed REST API client for tasks, notes, and events
+- `chatClient` — session creation and SSE message streaming
+- `streamHandler` / `sseParser` — live token parsing from SSE streams
+- Contexts: `SessionContext`, `ChatContext`, `TaskContext`, `NotesContext`, `EventsContext`
+- `AppProvider` — single root provider that composes all contexts
+- Hooks: `useSession`, `useChat`, `useTasks`, `useNotes`, `useEvents`, `useToast`
+
+### Layer 4 — UI Components (`src/components/ui/`)
+
+| Component | Purpose |
+|-----------|---------|
+| `Button` | `primary / secondary / ghost / danger` variants, `sm / md / lg` sizes, loading state |
+| `Input` | Labeled text input with optional error message |
+| `Textarea` | Labeled multi-line input |
+| `Select` | Labeled dropdown from `{value, label}[]` options |
+| `Modal` | Overlay with ESC + backdrop-click close |
+| `Badge` | Colored pill label (uses `STATUS_COLORS` / `PRIORITY_COLORS`) |
+| `Card` | Surface card with optional left accent stripe |
+| `Skeleton` | Shimmer placeholder with configurable width/height |
+| `EmptyState` | Icon + title + message + optional action button |
+| `Toast` | Auto-dismissing notification (success/error/info) |
+| `ToastContainer` | Top-right fixed stack of active toasts |
+| `Spinner` | Animated loading circle (`sm / md / lg`) |
+
+### Layer 5 — Layout & Pages
+
 ```
-frontend/
-├── src/
-│   ├── api/
-│   │   └── cogniflow.ts      # REST API calls to backend
-│   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Layout.tsx    # Main layout wrapper
-│   │   │   ├── Navbar.tsx    # Top navigation
-│   │   │   └── Sidebar.tsx   # Side navigation
-│   │   └── Toast.tsx         # Toast notifications
-│   ├── pages/
-│   │   ├── Chat.tsx          # Chat interface with streaming
-│   │   ├── Tasks.tsx         # Task management (REST API)
-│   │   ├── Notes.tsx         # Note taking (REST API)
-│   │   └── Events.tsx         # Event scheduling (REST API)
-│   ├── lib/
-│   │   ├── storage.ts         # localStorage for offline cache
-│   │   └── messaging.ts       # Chat messaging helper
-│   ├── contexts/
-│   │   └── SessionContext.tsx # Session state management
-│   └── hooks/
-│       └── useToast.tsx       # Toast notification hook
-└── dist/                     # Production build output
+src/
+├── components/
+│   ├── layout/
+│   │   ├── Layout.tsx    # Desktop sidebar + mobile navbar/tabs + ToastContainer
+│   │   ├── Navbar.tsx    # Page title + mobile hamburger toggle
+│   │   └── Sidebar.tsx   # Logo, nav links, sessions list, new session button
+│   └── ui/               # (see Layer 4 above)
+└── pages/
+    ├── Chat.tsx          # SSE streaming chat, agent badges, typing indicator
+    ├── Tasks.tsx         # Filter tabs, search, priority cards, CRUD modal
+    ├── Notes.tsx         # 2-column grid, tag badges, search, CRUD modal
+    └── Events.tsx        # Upcoming/all filter, datetime display, CRUD modal
 ```
 
 ## Data Flow
 
-### Chat Flow (Agent-based)
+### Chat (SSE streaming)
 
 ```
-User Input -> Chat.tsx
-  | (sendMessage)
-  v
-POST /run_sse -> Backend
-  | (Google ADK Runner)
-  v
-Root Agent -> Sub-Agent (task/schedule/notes)
-  | (storage tool)
-  v
-JSON File (data/)
-  | (SSE stream)
-  v
-Frontend displays streaming response
+User Input → Chat.tsx
+  → chatClient.sendMessage() → POST /run_sse
+  → streamHandler.handle() → sseParser.parse()
+  → onToken callbacks → ChatContext.messages (live append)
+  → Chat.tsx re-renders each token
 ```
 
-### Direct API Flow (CRUD Operations)
+### CRUD Pages (Tasks / Notes / Events)
 
 ```
-User Action (create/update/delete)
-  |
-  v
-Page Component (Tasks.tsx / Notes.tsx / Events.tsx)
-  |
-  v
-API Call (getTasks, createNote, etc.)
-  |
-  v
-GET/POST/PATCH/DELETE /api/{entity}
-  |
-  v
-FastAPI Endpoint
-  |
-  v
-storage/tools.py functions
-  |
-  v
-data/{entity}.json
-  |
-  v
-Frontend state updated
+User Action → Page Component
+  → Hook (useTasks / useNotes / useEvents)
+  → restClient method (GET / POST / PATCH / DELETE)
+  → /api/{entity} backend endpoint
+  → Context state updated → Page re-renders
+  → useToast.addToast() → ToastContainer renders notification
 ```
 
 ### Architecture Diagram
@@ -96,7 +101,7 @@ Frontend state updated
 ## Prerequisites
 
 - **Node.js 18+**
-- **npm** or **yarn**
+- **npm**
 - **Backend Server** running on port 8080
 
 ## Setup
@@ -110,7 +115,7 @@ npm install
 
 ### 2. Environment Variables
 
-Create a `.env` file in the frontend directory:
+The `frontend/.env.local` file should contain:
 
 ```env
 VITE_BACKEND_URL=http://localhost:8080
@@ -118,14 +123,12 @@ VITE_BACKEND_URL=http://localhost:8080
 
 ### 3. Start Backend
 
-Ensure the backend server is running:
-
 ```bash
 # From project root
 python server.py
 ```
 
-### 4. Start Frontend
+### 4. Start Frontend Dev Server
 
 ```bash
 npm run dev
@@ -133,140 +136,7 @@ npm run dev
 
 The app will be available at `http://localhost:5173`
 
-## Implementation Details
-
-### REST API Integration
-
-The frontend uses direct REST API calls for CRUD operations on tasks, notes, and events:
-
-```typescript
-// Example: Fetching tasks
-const tasks = await api.getTasks();
-
-// Example: Creating a note
-const note = await api.createNote("Title", "Content", "tag1,tag2");
-
-// Example: Updating an event
-await api.updateEvent(eventId, { title: "New Title" });
-```
-
-### API Functions (cogniflow.ts)
-
-#### Tasks
-- `getTasks(status?)` - List all tasks
-- `getTask(id)` - Get single task
-- `createTask(title, description, priority, dueDate)` - Create task
-- `updateTask(id, fields)` - Update task fields
-- `deleteTask(id)` - Delete task
-- `searchTasks(keyword)` - Search tasks
-
-#### Notes
-- `getNotes()` - List all notes
-- `getNote(id)` - Get single note
-- `createNote(title, content, tags)` - Create note
-- `updateNote(id, fields)` - Update note fields
-- `deleteNote(id)` - Delete note
-- `searchNotes(keyword)` - Search notes
-
-#### Events
-- `getEvents(fromDate?)` - List events
-- `getEvent(id)` - Get single event
-- `createEvent(title, startTime, endTime, description, location)` - Create event
-- `updateEvent(id, fields)` - Update event fields
-- `deleteEvent(id)` - Delete event
-- `searchEvents(keyword)` - Search events
-
-### Chat Streaming
-
-Chat uses Server-Sent Events (SSE) for real-time streaming:
-
-```typescript
-await streamChat(request, (text) => {
-  // Handle streaming text
-}, (error) => {
-  // Handle error
-});
-```
-
-### Session Management
-
-Sessions are managed through `SessionContext`:
-
-```typescript
-const { userId, sessionId } = useSession();
-```
-
-## Backend API Reference
-
-### Health Check
-
-```bash
-curl http://localhost:8080/health
-```
-
-### Tasks API
-
-```bash
-# List all tasks
-curl http://localhost:8080/api/tasks
-
-# Create task
-curl -X POST "http://localhost:8080/api/tasks?title=Test&priority=high"
-
-# Update task
-curl -X PATCH "http://localhost:8080/api/tasks/1?status=done"
-
-# Delete task
-curl -X DELETE http://localhost:8080/api/tasks/1
-```
-
-### Notes API
-
-```bash
-# List all notes
-curl http://localhost:8080/api/notes
-
-# Create note
-curl -X POST "http://localhost:8080/api/notes?title=My Note&content=Content here&tags=work,idea"
-
-# Delete note
-curl -X DELETE http://localhost:8080/api/notes/1
-```
-
-### Events API
-
-```bash
-# List all events
-curl http://localhost:8080/api/events
-
-# Create event (with ISO datetime)
-curl -X POST "http://localhost:8080/api/events?title=Meeting&start_time=2026-04-15T10:00:00&end_time=2026-04-15T11:00:00&location=Room 101"
-```
-
-### Chat API
-
-```bash
-# Streaming chat (SSE)
-curl -X POST http://localhost:8080/run_sse \
-  -H "Content-Type: application/json" \
-  -d '{
-    "app_name": "multi_agent_app",
-    "user_id": "user123",
-    "session_id": "session456",
-    "new_message": {
-      "role": "user",
-      "parts": [{"text": "Create a task for tomorrow"}]
-    }
-  }'
-```
-
 ## Build & Deployment
-
-### Development Build
-
-```bash
-npm run dev
-```
 
 ### Production Build
 
@@ -282,55 +152,120 @@ Output is in the `dist/` directory.
 npm run preview
 ```
 
-### Deploy to Static Hosting
+### Static Hosting
 
-The `dist/` folder can be deployed to:
-- Vercel
-- Netlify
-- GitHub Pages
-- Firebase Hosting
-- AWS S3 + CloudFront
-- Google Cloud Storage
+The `dist/` folder can be deployed to Vercel, Netlify, GitHub Pages, Firebase Hosting, AWS S3 + CloudFront, or Google Cloud Storage. Set `VITE_BACKEND_URL` to your production backend URL in your hosting platform environment.
 
-Set `VITE_BACKEND_URL` to your production backend URL in your hosting platform.
+## Backend API Reference
+
+### Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+### Tasks API
+
+```bash
+# List all tasks
+curl http://localhost:8080/api/tasks
+
+# Filter by status
+curl "http://localhost:8080/api/tasks?status=pending"
+
+# Create task
+curl -X POST "http://localhost:8080/api/tasks?title=Test&priority=high&description=Details"
+
+# Update task
+curl -X PATCH "http://localhost:8080/api/tasks/1?status=done"
+
+# Delete task
+curl -X DELETE http://localhost:8080/api/tasks/1
+
+# Search
+curl http://localhost:8080/api/tasks/search/keyword
+```
+
+### Notes API
+
+```bash
+# List all notes
+curl http://localhost:8080/api/notes
+
+# Create note
+curl -X POST "http://localhost:8080/api/notes?title=My+Note&content=Content&tags=work,idea"
+
+# Update note
+curl -X PATCH "http://localhost:8080/api/notes/1?title=Updated+Title"
+
+# Delete note
+curl -X DELETE http://localhost:8080/api/notes/1
+```
+
+### Events API
+
+```bash
+# List all events
+curl http://localhost:8080/api/events
+
+# Upcoming only
+curl "http://localhost:8080/api/events?from_date=2026-04-11T00:00:00"
+
+# Create event
+curl -X POST "http://localhost:8080/api/events?title=Meeting&start_time=2026-04-15T10:00:00&end_time=2026-04-15T11:00:00&location=Room+101"
+
+# Delete event
+curl -X DELETE http://localhost:8080/api/events/1
+```
+
+### Chat API (SSE)
+
+```bash
+curl -X POST http://localhost:8080/run_sse \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_name": "multi_agent_app",
+    "user_id": "user",
+    "session_id": "my-session-id",
+    "new_message": {
+      "role": "user",
+      "parts": [{"text": "Create a task for tomorrow"}]
+    }
+  }'
+```
 
 ## Troubleshooting
 
 ### CORS Errors
 
-Ensure your backend allows requests from your frontend URL in `server.py`:
+Ensure the backend allows requests from your frontend origin in `server.py`:
 
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "https://your-production-domain.com",
-    ],
+    allow_origins=["http://localhost:5173"],
     ...
 )
 ```
 
 ### API Connection Issues
 
-1. Verify backend is running on port 8080
-2. Check `VITE_BACKEND_URL` in `.env`
-3. Test with: `curl http://localhost:8080/health`
+1. Verify backend is running: `curl http://localhost:8080/health`
+2. Check `VITE_BACKEND_URL` in `frontend/.env.local`
 
 ### Network Inspection
 
-Open browser DevTools -> Network tab to inspect:
+Open browser DevTools → Network tab to inspect:
 - API requests to `/api/*`
 - SSE connections to `/run_sse`
-- Response status codes
+- Session management calls to `/apps/*/users/*/sessions`
 
 ## Tech Stack
 
-- **React 19** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool and dev server
-- **Tailwind CSS** - Styling
-- **React Router** - Navigation
-- **Server-Sent Events (SSE)** - Real-time streaming
-- **Fetch API** - HTTP client
+- **React 19** — UI library
+- **TypeScript** — Type safety
+- **Vite** — Build tool and dev server
+- **Tailwind CSS 3** — Utility-first styling (dark theme, 8px spacing system)
+- **React Router v7** — Client-side routing
+- **Server-Sent Events (SSE)** — Real-time chat streaming
+- **Fetch API** — HTTP client (no extra dependencies)
