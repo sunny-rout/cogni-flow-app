@@ -1,4 +1,4 @@
-import type { ChatRequest, Session } from '../types';
+import type { ChatRequest } from '../types';
 
 const BASE_URL = 'http://localhost:8080';
 
@@ -77,7 +77,7 @@ export async function createSession(userId: string, sessionId: string): Promise<
   }
 }
 
-export async function getSessions(userId: string): Promise<Session[]> {
+export async function getSessions(userId: string): Promise<any[]> {
   const response = await fetch(
     `${BASE_URL}/apps/multi_agent_app/users/${userId}/sessions`,
     {

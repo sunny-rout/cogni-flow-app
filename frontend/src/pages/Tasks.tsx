@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
-import { useSession } from '../contexts/SessionContext';
 import * as api from '../api/cogniflow';
-import type { Task } from '../lib/storage';
 
 type FilterType = 'all' | 'pending' | 'in_progress' | 'done';
 
@@ -18,7 +16,6 @@ interface TaskData {
 }
 
 export default function Tasks() {
-  const { userId, sessionId } = useSession();
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,7 +45,7 @@ export default function Tasks() {
     }
   };
 
-  const openModal = (task?: Task) => {
+  const openModal = (task?: TaskData) => {
     if (task) {
       setEditingTask(task);
       setFormData({

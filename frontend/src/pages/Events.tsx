@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
-import { useSession } from '../contexts/SessionContext';
-import { sendMessage } from '../lib/messaging';
 import { useToast } from '../hooks/useToast';
 import * as api from '../api/cogniflow';
 
@@ -19,7 +17,6 @@ interface EventData {
 type FilterType = 'upcoming' | 'all';
 
 export default function Events() {
-  const { userId, sessionId } = useSession();
   const { showToast, ToastContainer } = useToast();
   const [events, setEvents] = useState<EventData[]>([]);
   const [filter, setFilter] = useState<FilterType>('upcoming');
@@ -51,7 +48,7 @@ export default function Events() {
     }
   };
 
-  const openModal = (event?: Event) => {
+  const openModal = (event?: EventData) => {
     if (event) {
       setEditingEvent(event);
       setFormData({

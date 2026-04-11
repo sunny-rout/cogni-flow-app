@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
-import { useSession } from '../contexts/SessionContext';
 import * as api from '../api/cogniflow';
 import { useToast } from '../hooks/useToast';
 
@@ -14,7 +13,6 @@ interface NoteData {
 }
 
 export default function Notes() {
-  const { userId, sessionId } = useSession();
   const { showToast, ToastContainer } = useToast();
   const [notes, setNotes] = useState<NoteData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,7 +59,7 @@ export default function Notes() {
     }
   };
 
-  const openModal = (note?: Note) => {
+  const openModal = (note?: NoteData) => {
     if (note) {
       setEditingNote(note);
       setFormData({
@@ -97,11 +95,6 @@ export default function Notes() {
     setIsLoading(true);
 
     try {
-      const tagsArray = formData.tags
-        .split(',')
-        .map((t) => t.trim())
-        .filter((t) => t);
-
       if (editingNote) {
         await api.updateNote(editingNote.id, {
           title: formData.title,
