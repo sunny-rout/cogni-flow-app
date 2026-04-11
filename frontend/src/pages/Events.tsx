@@ -1,367 +1,264 @@
-import { useState, useEffect } from 'react';
-import Layout from '../components/layout/Layout';
-import { useToast } from '../hooks/useToast';
-import * as api from '../api/cogniflow';
+import { useEffect, useState } from "react"
+import Layout from "../components/layout/Layout"
+import { useEvents } from "../hooks/useEvents"
+import { useToast } from "../hooks/useToast"
+import Modal from "../components/ui/Modal"
+import Button from "../components/ui/Button"
+import Input from "../components/ui/Input"
+import Textarea from "../components/ui/Textarea"
+import Badge from "../components/ui/Badge"
+import Card from "../components/ui/Card"
+import Skeleton from "../components/ui/Skeleton"
+import EmptyState from "../components/ui/EmptyState"
+import { formatDateTime } from "../utils"
+import type { Event } from "../types"
 
-interface EventData {
-  id: number;
-  title: string;
-  description: string;
-  start_time: string;
-  end_time: string | null;
-  location: string;
-  created_at: string;
-  updated_at?: string;
+type FilterType = "upcoming" | "all"
+
+interface EventForm {
+  title: string
+  start_time: string
+  end_time: string
+  location: string
+  description: string
 }
 
-type FilterType = 'upcoming' | 'all';
+const defaultForm: EventForm = { title: "", start_time: "", end_time: "", location: "", description: "" }
 
 export default function Events() {
-  const { addToast: showToast } = useToast();
-  const [events, setEvents] = useState<EventData[]>([]);
-  const [filter, setFilter] = useState<FilterType>('upcoming');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<EventData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    start_time: '',
-    end_time: '',
-    location: '',
-  });
+  const { events, isLoading, error, filter, loadEvents, createEvent, updateEvent, deleteEvent, searchEvents, setFilter } = useEvents()
+  const { addToast } = useToast()
+
+  const [search, setSearch] = useState("")
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null)
+  const [form, setForm] = useState<EventForm>(defaultForm)
 
   useEffect(() => {
-    loadEvents();
-  }, []);
+    loadEvents()
+  }, [])
 
-  const loadEvents = async () => {
-    setIsLoading(true);
-    try {
-      const allEvents = await api.getEvents();
-      setEvents(allEvents);
-    } catch (error) {
-      console.error('Failed to load events:', error);
-      showToast('Failed to load events', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (error) addToast(error, "error")
+  }, [error])
 
-  const openModal = (event?: EventData) => {
-    if (event) {
-      setEditingEvent(event);
-      setFormData({
-        title: event.title,
-        description: event.description,
-        start_time: event.start_time,
-        end_time: event.end_time || '',
-        location: event.location,
-      });
+  const handleFilterChange = (f: FilterType) => {
+    setFilter(f)
+    if (f === "upcoming") {
+      loadEvents(new Date().toISOString())
     } else {
-      setEditingEvent(null);
-      setFormData({
-        title: '',
-        description: '',
-        start_time: '',
-        end_time: '',
-        location: '',
-      });
+      loadEvents()
     }
-    setIsModalOpen(true);
-  };
+  }
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingEvent(null);
-    setFormData({
-      title: '',
-      description: '',
-      start_time: '',
-      end_time: '',
-      location: '',
-    });
-  };
+  const handleSearch = () => {
+    if (search.trim()) searchEvents(search.trim())
+    else loadEvents(filter === "upcoming" ? new Date().toISOString() : undefined)
+  }
+
+  const openNew = () => {
+    setEditingEvent(null)
+    setForm(defaultForm)
+    setIsModalOpen(true)
+  }
+
+  const openEdit = (event: Event) => {
+    setEditingEvent(event)
+    setForm({
+      title: event.title,
+      start_time: event.start_time.slice(0, 16),
+      end_time: event.end_time.slice(0, 16),
+      location: event.location ?? "",
+      description: event.description ?? "",
+    })
+    setIsModalOpen(true)
+  }
+
+  const handleClose = () => {
+    setIsModalOpen(false)
+    setEditingEvent(null)
+    setForm(defaultForm)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.title.trim() || !formData.start_time) return;
-
-    setIsLoading(true);
-
+    e.preventDefault()
+    if (!form.title.trim() || !form.start_time || !form.end_time) return
     try {
       if (editingEvent) {
-        await api.updateEvent(editingEvent.id, {
-          title: formData.title,
-          description: formData.description,
-          start_time: formData.start_time,
-          end_time: formData.end_time || undefined,
-          location: formData.location,
-        });
-        showToast('Event updated!', 'success');
+        await updateEvent(editingEvent.id, {
+          title: form.title,
+          start_time: form.start_time,
+          end_time: form.end_time,
+          location: form.location,
+          description: form.description,
+        })
+        addToast("Event updated!", "success")
       } else {
-        await api.createEvent(
-          formData.title,
-          formData.start_time,
-          formData.end_time,
-          formData.description,
-          formData.location
-        );
-        showToast('Event created!', 'success');
+        await createEvent(form.title, form.start_time, form.end_time, form.description || undefined, form.location || undefined)
+        addToast("Event created!", "success")
       }
-
-      loadEvents();
-      closeModal();
-    } catch (error) {
-      showToast('Failed to save event', 'error');
-    } finally {
-      setIsLoading(false);
+      handleClose()
+      loadEvents(filter === "upcoming" ? new Date().toISOString() : undefined)
+    } catch {
+      addToast("Failed to save event", "error")
     }
-  };
+  }
 
-  const handleDelete = async (event: EventData) => {
-    if (!confirm('Are you sure you want to delete this event?')) return;
-
-    setIsLoading(true);
-
+  const handleDelete = async (event: Event) => {
+    if (!confirm(`Delete "${event.title}"?`)) return
     try {
-      await api.deleteEvent(event.id);
-      loadEvents();
-      showToast('Event deleted!', 'success');
-    } catch (error) {
-      showToast('Failed to delete event', 'error');
-    } finally {
-      setIsLoading(false);
+      await deleteEvent(event.id)
+      addToast("Event deleted", "success")
+    } catch {
+      addToast("Failed to delete event", "error")
     }
-  };
+  }
 
-  const filteredEvents = events.filter((event) => {
-    if (filter === 'upcoming') {
-      return new Date(event.start_time) >= new Date();
-    }
-    return true;
-  });
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  };
-
-  const isUpcoming = (dateString: string) => {
-    return new Date(dateString) >= new Date();
-  };
+  const isUpcoming = (startTime: string) => new Date(startTime) > new Date()
 
   return (
-    <Layout title="Events / Schedule">
-      <div className="p-6 max-w-5xl mx-auto">
-        <div className="mb-6 flex gap-3 items-center justify-between">
-          <div className="flex gap-2">
-            {(['upcoming', 'all'] as FilterType[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === f
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
+    <Layout title="Events">
+      <div className="p-6 max-w-5xl mx-auto space-y-5">
+        <div className="flex gap-1 bg-slate-900 p-1 rounded-lg w-fit">
+          {([
+            { value: "upcoming" as FilterType, label: "Upcoming" },
+            { value: "all" as FilterType, label: "All" },
+          ]).map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => handleFilterChange(tab.value)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                filter === tab.value
+                  ? "bg-slate-700 text-white"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-3">
+          <div className="flex gap-2 flex-1">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="Search events..."
+              className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <Button variant="secondary" onClick={handleSearch} size="md">Search</Button>
           </div>
-          <button
-            onClick={() => openModal()}
-            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors whitespace-nowrap"
-          >
-            + New Event
-          </button>
+          <Button variant="primary" onClick={openNew} size="md">+ New Event</Button>
         </div>
 
         {isLoading && events.length === 0 ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-slate-800 rounded-lg p-4 animate-pulse border-l-4 border-blue-500">
-                <div className="h-6 bg-slate-700 rounded w-1/2 mb-3"></div>
-                <div className="h-4 bg-slate-700 rounded w-1/3 mb-2"></div>
-                <div className="h-4 bg-slate-700 rounded w-2/3"></div>
+              <div key={i} className="bg-slate-800 rounded-lg p-4 space-y-3">
+                <Skeleton height="20px" width="55%" />
+                <Skeleton height="14px" width="40%" />
+                <Skeleton height="14px" width="25%" />
               </div>
             ))}
           </div>
-        ) : filteredEvents.length === 0 ? (
-          <div className="text-center text-slate-500 py-12">
-            <div className="text-6xl mb-3">📅</div>
-            <p className="text-lg">No events found</p>
-            <p className="text-sm mt-2">Create your first event to get started</p>
-          </div>
+        ) : events.length === 0 ? (
+          <EmptyState
+            icon="📅"
+            title="No events yet"
+            message="Schedule your first event to get started!"
+            actionLabel="+ New Event"
+            onAction={openNew}
+          />
         ) : (
           <div className="space-y-3">
-            {filteredEvents.map((event) => (
-              <div
-                key={event.id}
-                className="bg-slate-800 rounded-lg p-4 border-l-4 border-blue-500 hover:bg-slate-750 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-bold text-white">{event.title}</h3>
-                      {isUpcoming(event.start_time) && (
-                        <span className="px-2 py-1 bg-blue-700 text-blue-100 rounded text-xs font-medium">
-                          Upcoming
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm mb-2">
-                      <div className="flex items-center gap-1 text-teal-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span>{formatDate(event.start_time)}</span>
+            {events.map((event) => (
+              <Card key={event.id} accentColor="#3b82f6">
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-white text-sm truncate">{event.title}</h3>
+                        {isUpcoming(event.start_time) && (
+                          <Badge text="Upcoming" colorClass="bg-blue-600" />
+                        )}
                       </div>
-                      <div className="flex items-center gap-1 text-teal-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span>
-                          {formatTime(event.start_time)}
-                          {event.end_time && ` - ${formatTime(event.end_time)}`}
-                        </span>
-                      </div>
+                      <p className="text-xs text-teal-400">
+                        {formatDateTime(event.start_time)} → {formatDateTime(event.end_time)}
+                      </p>
                       {event.location && (
-                        <div className="flex items-center gap-1 text-slate-400">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span>{event.location}</span>
-                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">{event.location}</p>
                       )}
                     </div>
-                    {event.description && (
-                      <p className="text-slate-400 text-sm">{event.description}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openModal(event)}
-                      className="text-slate-400 hover:text-purple-400 transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleDelete(event)}
-                      className="text-slate-400 hover:text-red-400 transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => openEdit(event)}
+                        className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(event)}
+                        className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
-
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-slate-800 rounded-lg p-6 max-w-2xl w-full">
-              <h2 className="text-xl font-semibold text-white mb-4">
-                {editingEvent ? 'Edit Event' : 'New Event'}
-              </h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Title *</label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-slate-400 mb-1">Start Time *</label>
-                    <input
-                      type="datetime-local"
-                      value={formData.start_time}
-                      onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                      className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-slate-400 mb-1">End Time</label>
-                    <input
-                      type="datetime-local"
-                      value={formData.end_time}
-                      onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                      className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Location</label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="Meeting room, address, etc."
-                    className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-900 text-white rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-600"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-700 text-white rounded-lg transition-colors"
-                  >
-                    {isLoading ? 'Saving...' : editingEvent ? 'Update' : 'Create'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
       </div>
+
+      <Modal isOpen={isModalOpen} onClose={handleClose} title={editingEvent ? "Edit Event" : "New Event"}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            label="Title *"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="Event title"
+            required
+          />
+          <Input
+            label="Start Time *"
+            type="datetime-local"
+            value={form.start_time}
+            onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+            required
+          />
+          <Input
+            label="End Time *"
+            type="datetime-local"
+            value={form.end_time}
+            onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+            required
+          />
+          <Input
+            label="Location"
+            value={form.location}
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
+            placeholder="Optional location"
+          />
+          <Textarea
+            label="Description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="Optional description"
+            rows={3}
+          />
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={handleClose} className="flex-1">
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" loading={isLoading} className="flex-1">
+              {editingEvent ? "Update" : "Create"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </Layout>
-  );
+  )
 }
