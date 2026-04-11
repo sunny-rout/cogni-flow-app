@@ -99,7 +99,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   )
 }
 
-export function useChat() {
+export function useChatContext() {
   const ctx = useContext(ChatContext)
   if (!ctx) throw new Error("useChat must be used within ChatProvider")
   return ctx

@@ -1,3 +1,5 @@
-import { useChat } from "../contexts/ChatContext"
+import { useChatContext } from "../contexts/ChatContext"
 
-export { useChat }
+export function useChat() {
+  return useChatContext()
+}
