@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { chatClient } from "../services/chatClient"
 import { streamHandler } from "../services/streamHandler"
 import { generateId } from "../utils"
+import { useSession } from "./SessionContext"
 import type { ChatMessage } from "../types"
 
 interface ChatContextType {
@@ -14,8 +15,18 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined)
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const { sessionId } = useSession()
+  const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({})
   const [isStreaming, setIsStreaming] = useState(false)
+
+  const messages = messagesBySession[sessionId] ?? []
+
+  const setMessages = (sessionKey: string, updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+    setMessagesBySession((allSessions) => ({
+      ...allSessions,
+      [sessionKey]: updater(allSessions[sessionKey] ?? []),
+    }))
+  }
 
   const sendMessage = async (userId: string, sessionId: string, text: string) => {
     const userMsg: ChatMessage = {
@@ -24,7 +35,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       text,
       timestamp: new Date().toISOString(),
     }
-    setMessages((prev) => [...prev, userMsg])
+    setMessages(sessionId, (prev) => [...prev, userMsg])
 
     const assistantMsg: ChatMessage = {
       id: generateId(),
@@ -34,7 +45,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       timestamp: new Date().toISOString(),
       isStreaming: true,
     }
-    setMessages((prev) => [...prev, assistantMsg])
+    setMessages(sessionId, (prev) => [...prev, assistantMsg])
     setIsStreaming(true)
 
     try {
@@ -42,7 +53,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       await streamHandler.handle(stream, {
         onToken: (token) => {
-          setMessages((prev) => {
+          setMessages(sessionId, (prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
             if (last && last.role === "model") {
@@ -52,7 +63,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           })
         },
         onAuthor: (author) => {
-          setMessages((prev) => {
+          setMessages(sessionId, (prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
             if (last && last.role === "model") {
@@ -62,7 +73,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           })
         },
         onComplete: () => {
-          setMessages((prev) => {
+          setMessages(sessionId, (prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
             if (last && last.role === "model") {
