@@ -6,7 +6,7 @@ import { storage } from '../lib/storage';
 import type { Session, Message } from '../lib/storage';
 
 export default function Chat() {
-  const { userId, sessionId, createNewSession } = useSession();
+  const { userId, sessionId, createSession: createNewSession } = useSession();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);

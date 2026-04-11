@@ -13,7 +13,7 @@ interface NoteData {
 }
 
 export default function Notes() {
-  const { showToast, ToastContainer } = useToast();
+  const { addToast: showToast } = useToast();
   const [notes, setNotes] = useState<NoteData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -285,7 +285,6 @@ export default function Notes() {
           </div>
         )}
 
-        <ToastContainer />
       </div>
     </Layout>
   );

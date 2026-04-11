@@ -1,36 +1,22 @@
-import { useState } from 'react';
-import Toast from '../components/Toast';
-
-interface ToastState {
-  message: string;
-  type: 'success' | 'error' | 'info';
-  id: number;
-}
+import { useState, useCallback } from "react"
+import { generateId } from "../utils"
+import type { ToastMessage } from "../types"
 
 export function useToast() {
-  const [toasts, setToasts] = useState<ToastState[]>([]);
+  const [toasts, setToasts] = useState<ToastMessage[]>([])
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { message, type, id }]);
-  };
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
 
-  const removeToast = (id: number) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  const addToast = useCallback((message: string, type: ToastMessage["type"] = "info") => {
+    const id = generateId()
+    const toast: ToastMessage = { id, type, message }
+    setToasts((prev) => [...prev, toast])
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 3000)
+  }, [])
 
-  const ToastContainer = () => (
-    <>
-      {toasts.map((toast) => (
-        <Toast
-          key={toast.id}
-          message={toast.message}
-          type={toast.type}
-          onClose={() => removeToast(toast.id)}
-        />
-      ))}
-    </>
-  );
-
-  return { showToast, ToastContainer };
+  return { toasts, addToast, removeToast }
 }

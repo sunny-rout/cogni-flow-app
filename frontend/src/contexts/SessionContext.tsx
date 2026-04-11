@@ -1,49 +1,65 @@
-import { createContext, useContext, useState } from 'react';
-import type { ReactNode } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { createContext, useContext, useEffect, useState } from "react"
+import type { ReactNode } from "react"
+import { CONFIG } from "../config/env"
+import { chatClient } from "../services/chatClient"
+import { generateId } from "../utils"
+import type { Session } from "../types"
 
 interface SessionContextType {
-  userId: string;
-  sessionId: string;
-  createNewSession: () => void;
+  userId: string
+  sessionId: string
+  sessions: Session[]
+  createSession: () => void
+  switchSession: (id: string) => void
 }
 
-const SessionContext = createContext<SessionContextType | undefined>(undefined);
+const SessionContext = createContext<SessionContextType | undefined>(undefined)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [userId] = useState(() => {
-    const stored = localStorage.getItem('cogniflow_user_id');
-    if (stored) return stored;
-    const newId = `user_${uuidv4().slice(0, 8)}`;
-    localStorage.setItem('cogniflow_user_id', newId);
-    return newId;
-  });
+  const [userId] = useState<string>(CONFIG.DEFAULT_USER_ID)
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [activeSessionId, setActiveSessionId] = useState<string>("")
 
-  const [sessionId, setSessionId] = useState(() => {
-    const stored = localStorage.getItem('cogniflow_session_id');
-    if (stored) return stored;
-    const newId = uuidv4();
-    localStorage.setItem('cogniflow_session_id', newId);
-    return newId;
-  });
+  const addSession = (sessionId: string) => {
+    const session: Session = { id: sessionId, createdAt: new Date().toISOString() }
+    setSessions((prev) => [...prev, session])
+    setActiveSessionId(sessionId)
+  }
 
-  const createNewSession = () => {
-    const newId = uuidv4();
-    setSessionId(newId);
-    localStorage.setItem('cogniflow_session_id', newId);
-  };
+  const createSession = async () => {
+    const sessionId = generateId()
+    try {
+      await chatClient.createSession(userId, sessionId)
+    } catch {
+    }
+    addSession(sessionId)
+  }
+
+  const switchSession = (id: string) => {
+    setActiveSessionId(id)
+  }
+
+  useEffect(() => {
+    const init = async () => {
+      const sessionId = generateId()
+      try {
+        await chatClient.createSession(userId, sessionId)
+      } catch {
+      }
+      addSession(sessionId)
+    }
+    init()
+  }, [])
 
   return (
-    <SessionContext.Provider value={{ userId, sessionId, createNewSession }}>
+    <SessionContext.Provider value={{ userId, sessionId: activeSessionId, sessions, createSession, switchSession }}>
       {children}
     </SessionContext.Provider>
-  );
+  )
 }
 
 export function useSession() {
-  const context = useContext(SessionContext);
-  if (!context) {
-    throw new Error('useSession must be used within SessionProvider');
-  }
-  return context;
+  const ctx = useContext(SessionContext)
+  if (!ctx) throw new Error("useSession must be used within SessionProvider")
+  return ctx
 }

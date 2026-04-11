@@ -17,7 +17,7 @@ interface EventData {
 type FilterType = 'upcoming' | 'all';
 
 export default function Events() {
-  const { showToast, ToastContainer } = useToast();
+  const { addToast: showToast } = useToast();
   const [events, setEvents] = useState<EventData[]>([]);
   const [filter, setFilter] = useState<FilterType>('upcoming');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -361,7 +361,6 @@ export default function Events() {
           </div>
         )}
 
-        <ToastContainer />
       </div>
     </Layout>
   );
