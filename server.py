@@ -8,6 +8,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 
 from cogni_flow_app.config import config
+from cogni_flow_app.logging import app_logger, RequestLoggingMiddleware
 from cogni_flow_app.models.requests.chat_requests import ChatRequest
 from cogni_flow_app.models.responses.base_response import ApiResponse
 from cogni_flow_app.models.responses.common_responses import (
@@ -28,6 +29,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.exception_handler(Exception)
@@ -107,6 +109,10 @@ async def run_sse(request: ChatRequest):
 
 
 if __name__ == "__main__":
+    app_logger.info(
+        "Starting CogniFlow API",
+        extra={"port": config.port, "model": config.model},
+    )
     uvicorn.run(
         "server:app",
         host="0.0.0.0",
