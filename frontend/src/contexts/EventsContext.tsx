@@ -10,7 +10,7 @@ interface EventsContextType {
   isLoading: boolean
   error: string | null
   filter: EventFilter
-  loadEvents: (fromDate?: string) => void
+  loadEvents: () => void
   createEvent: (title: string, startTime: string, endTime: string, description?: string, location?: string) => void
   updateEvent: (id: number, fields: Partial<Event>) => void
   deleteEvent: (id: number) => void
@@ -26,11 +26,11 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<EventFilter>("all")
 
-  const loadEvents = async (fromDate?: string) => {
+  const loadEvents = async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await restClient.getEvents(fromDate)
+      const data = await restClient.getEvents()
       setEvents(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load events")

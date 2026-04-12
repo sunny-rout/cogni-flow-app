@@ -84,10 +84,7 @@ class RestClient {
     return this.request<Note[]>(`/api/notes/search/${encodeURIComponent(keyword)}`)
   }
 
-  async getEvents(fromDate?: string): Promise<Event[]> {
-    if (fromDate) {
-      return this.request<Event[]>(`/api/events/upcoming?from_date=${encodeURIComponent(fromDate)}`)
-    }
+  async getEvents(): Promise<Event[]> {
     return this.request<Event[]>("/api/events/")
   }
 

@@ -44,16 +44,12 @@ export default function Events() {
 
   const handleFilterChange = (f: FilterType) => {
     setFilter(f)
-    if (f === "upcoming") {
-      loadEvents(new Date().toISOString())
-    } else {
-      loadEvents()
-    }
+    setSearch("")
   }
 
   const handleSearch = () => {
     if (search.trim()) searchEvents(search.trim())
-    else loadEvents(filter === "upcoming" ? new Date().toISOString() : undefined)
+    else loadEvents()
   }
 
   const openNew = () => {
@@ -98,7 +94,7 @@ export default function Events() {
         addToast("Event created!", "success")
       }
       handleClose()
-      loadEvents(filter === "upcoming" ? new Date().toISOString() : undefined)
+      loadEvents()
     } catch {
       addToast("Failed to save event", "error")
     }
@@ -115,6 +111,11 @@ export default function Events() {
   }
 
   const isUpcoming = (startTime: string) => new Date(startTime) > new Date()
+
+  const now = new Date()
+  const displayedEvents = filter === "upcoming"
+    ? events.filter((e) => new Date(e.start_time) > now).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+    : [...events].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
   return (
     <Layout title="Events">
@@ -153,7 +154,7 @@ export default function Events() {
           <Button variant="primary" onClick={openNew} size="md">+ New Event</Button>
         </div>
 
-        {isLoading && events.length === 0 ? (
+        {isLoading && displayedEvents.length === 0 ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-surface rounded-lg p-4 space-y-3">
@@ -163,7 +164,7 @@ export default function Events() {
               </div>
             ))}
           </div>
-        ) : events.length === 0 ? (
+        ) : displayedEvents.length === 0 ? (
           <EmptyState
             icon="📅"
             title="No events yet"
@@ -173,7 +174,7 @@ export default function Events() {
           />
         ) : (
           <div className="space-y-3">
-            {events.map((event) => (
+            {displayedEvents.map((event) => (
               <Card key={event.id} accentColor="#3b82f6">
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-4">
