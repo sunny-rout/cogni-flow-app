@@ -1,182 +1,147 @@
 # CogniFlow
 
-A multi-agent AI personal assistant that helps manage tasks, notes, events, and provides an interactive chat interface.
+An AI-powered personal productivity assistant. Manage tasks, notes, and calendar events through natural language chat or direct REST API calls.
 
-## Overview
+**Backend:** Python · FastAPI · Google ADK · Vertex AI (Gemini 2.5 Flash) · Pydantic v2
+**Frontend:** React 19 · TypeScript · Vite · Tailwind CSS
+**Storage:** JSON files (swappable via repository pattern)
 
-CogniFlow uses Google ADK (Agent Development Kit) with specialized sub-agents for different domains. The backend stores data in JSON files, and the frontend provides both a chat interface and direct CRUD operations.
+---
 
-## Directory Structure
+## Folder Structure
 
 ```
 CogniFlow/
-├── server.py                 # FastAPI server entry point
-├── README.md                 # This file (integrated overview)
-├── cogni_flow_app/          # Backend Python package
-│   ├── README.md            # Backend documentation
-│   ├── agent.py             # Root agent
-│   ├── storage/             # JSON storage layer
-│   ├── sub_agents/          # Specialized agents
-│   └── data/                # JSON file storage
-├── frontend/                 # React frontend
-│   ├── README.md            # Frontend documentation
-│   └── src/                 # React source
-└── supabase/               # Database configuration (future)
+├── server.py                    # FastAPI entry point
+├── cogni_flow_app/              # Backend Python package
+│   ├── agent.py                 # Root agent + sub-agent wiring
+│   ├── config.py                # App config (env vars)
+│   ├── constants.py             # Shared constants (priorities, statuses, date formats)
+│   ├── models/                  # Pydantic models (Task, Note, Event, ApiResponse)
+│   ├── repositories/            # Persistence layer (abstract + JSON implementations)
+│   ├── services/                # Business logic
+│   ├── tools/                   # AI-callable tool functions
+│   ├── sub_agents/              # Specialized agents (task, notes, schedule)
+│   ├── routers/                 # FastAPI routers
+│   ├── logging/                 # Structured logging, middleware, decorators
+│   └── storage/                 # Low-level JSON file store + legacy tool functions
+├── frontend/                    # React frontend
+│   ├── src/
+│   │   ├── api/                 # High-level API functions
+│   │   ├── services/            # REST client, chat client, SSE parser, stream handler
+│   │   ├── contexts/            # React context providers
+│   │   ├── hooks/               # Custom React hooks
+│   │   ├── pages/               # Chat, Tasks, Notes, Events pages
+│   │   ├── components/          # UI components and layout
+│   │   └── types/               # TypeScript interfaces
+│   └── package.json
+└── supabase/                    # Database migrations (Supabase)
 ```
+
+---
+
+## Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- Google Cloud project with Vertex AI enabled
+- A service account with `roles/aiplatform.user`
+
+---
 
 ## Quick Start
 
-### Backend Setup
+### 1. Backend
 
 ```bash
 cd cogni_flow_app
-uv pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-Create `.env` file in `cogni_flow_app/`:
+Create `.env` in the project root:
 
 ```env
 MODEL=gemini-2.5-flash
 GOOGLE_CLOUD_PROJECT=your-project-id
 GOOGLE_GENAI_USE_VERTEXAI=1
-GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 PORT=8080
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
 ```
 
-### Frontend Setup
+```bash
+python server.py
+```
+
+API available at `http://localhost:8080`.
+
+### 2. Frontend
 
 ```bash
 cd frontend
 npm install
 ```
 
-Create `.env` file in `frontend/`:
+Create `.env` in `frontend/`:
 
 ```env
 VITE_BACKEND_URL=http://localhost:8080
+VITE_APP_NAME=cogni_flow_app
 ```
-
-### Run
 
 ```bash
-# Terminal 1 - Backend
-python server.py
-
-# Terminal 2 - Frontend
-cd frontend && npm run dev
+npm run dev
 ```
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8080
+App available at `http://localhost:5173`.
 
-## Architecture
+---
 
-<img src="images\AI-powered-architecture-diagram.png" alt="AI-powered-architecture-diagram">
+## Environment Variables
 
-## Data Flow
+### Backend (`/.env`)
 
-### Chat Flow (Agent-based)
+| Variable | Default | Description |
+|---|---|---|
+| `MODEL` | `gemini-2.5-flash` | Gemini model ID |
+| `GOOGLE_CLOUD_PROJECT` | — | GCP project ID |
+| `GOOGLE_GENAI_USE_VERTEXAI` | `1` | Use Vertex AI (`1`) or AI Studio (`0`) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | — | Path to service account JSON |
+| `PORT` | `8080` | Server port |
+| `ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174` | Comma-separated CORS origins |
 
-```
-User Input -> Chat.tsx
-  | (sendMessage)
-  v
-POST /run_sse -> Backend
-  | (Google ADK Runner)
-  v
-Root Agent -> Sub-Agent (task/schedule/notes)
-  | (storage tool)
-  v
-JSON File (data/)
-  | (SSE stream)
-  v
-Frontend displays streaming response
-```
+### Frontend (`/frontend/.env`)
 
-### Direct API Flow (CRUD Operations)
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_BACKEND_URL` | `http://localhost:8080` | Backend base URL |
+| `VITE_APP_NAME` | `cogni_flow_app` | ADK app name (must match backend) |
 
-```
-User Action (create/update/delete)
-  |
-  v
-Page Component (Tasks.tsx / Notes.tsx / Events.tsx)
-  |
-  v
-API Call (getTasks, createNote, etc.)
-  |
-  v
-GET/POST/PATCH/DELETE /api/{entity}
-  |
-  v
-FastAPI Endpoint -> storage/tools.py -> data/{entity}.json
-```
-
-## API Endpoints
-
-### Health Check
-
-```bash
-curl http://localhost:8080/health
-```
-
-### Chat (SSE)
-
-```bash
-curl -X POST http://localhost:8080/run_sse \
-  -H "Content-Type: application/json" \
-  -d '{
-    "app_name": "multi_agent_app",
-    "user_id": "user123",
-    "session_id": "session456",
-    "new_message": {
-      "role": "user",
-      "parts": [{"text": "Create a task for tomorrow"}]
-    }
-  }'
-```
-
-### REST API
-
-| Entity | Endpoints |
-|--------|-----------|
-| Tasks | `GET/POST/PATCH/DELETE /api/tasks`, `GET /api/tasks/{id}`, `GET /api/tasks/search/{keyword}` |
-| Notes | `GET/POST/PATCH/DELETE /api/notes`, `GET /api/notes/{id}`, `GET /api/notes/search/{keyword}` |
-| Events | `GET/POST/PATCH/DELETE /api/events`, `GET /api/events/{id}`, `GET /api/events/search/{keyword}` |
-
-> **Note:** The Events page fetches all events once on load. The "Upcoming" / "All" filter tabs and sorting are handled entirely on the frontend using in-memory filter and sort — no additional API calls are made when switching tabs.
-
-## Natural Language Date Parsing
-
-| Input | Output |
-|-------|--------|
-| `today`, `tomorrow`, `day after tomorrow` | Relative dates |
-| `in 3 days`, `in 2 weeks` | Relative with offset |
-| `next monday`, `April 15` | Day names & month dates |
-| `3pm`, `9:30am`, `night`, `morning` | Time parsing |
-| `for 1 hour`, `for 30 minutes` | Duration parsing |
-
-## Detailed Documentation
-
-For more details, see:
-
-- **[Backend Documentation](./cogni_flow_app/README.md)** - Agent system, storage, API reference, setup, troubleshooting
-- **[Frontend Documentation](./frontend/README.md)** - React components, API integration, build & deployment
+---
 
 ## Tech Stack
 
 ### Backend
-- **Google ADK** - Multi-agent framework
-- **FastAPI** - Web framework
-- **python-dateutil** - Natural language date parsing
-- **Google Cloud Logging** - Logging
+| Library | Purpose |
+|---|---|
+| FastAPI | HTTP framework, routing |
+| Google ADK | Multi-agent orchestration |
+| Vertex AI (Gemini 2.5 Flash) | LLM inference |
+| Pydantic v2 | Data validation and serialization |
+| python-dateutil | Natural language date/time parsing |
 
 ### Frontend
-- **React 19** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **Tailwind CSS** - Styling
-- **Server-Sent Events** - Real-time streaming
+| Library | Purpose |
+|---|---|
+| React 19 | UI library |
+| TypeScript 5.6 | Type safety |
+| Vite | Build tool / dev server |
+| Tailwind CSS 3 | Utility-first styling |
+| react-router-dom 7 | Client-side routing |
 
-## License
+---
 
-MIT
+## Further Reading
+
+- [Backend Reference](./cogni_flow_app/README.md) — architecture, API reference, logging, extensibility
+- [Frontend Reference](./frontend/README.md) — setup, API integration, SSE streaming, TypeScript types

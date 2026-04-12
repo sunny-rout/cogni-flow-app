@@ -1,519 +1,434 @@
-# CogniFlow Backend
+# CogniFlow — Backend Reference
 
-A multi-agent AI assistant backend built with Google ADK (Agent Development Kit), FastAPI, and JSON file storage.
+FastAPI backend for CogniFlow. Exposes REST endpoints and an SSE chat endpoint powered by a multi-agent system built on Google ADK and Vertex AI.
 
-## Overview
+---
 
-CogniFlow Backend is a Python-based multi-agent system that handles:
-- **Task Management** - Create, read, update, delete tasks
-- **Note Taking** - Create, search, update, delete notes
-- **Event Scheduling** - Create, list, update, delete calendar events
-
-The system uses Google ADK's agent framework with specialized sub-agents for each domain, and stores data in JSON files.
-
-## Architecture
+## Architecture — 5-Layer Stack
 
 ```
-cogni_flow_app/
-├── agent.py                 # Root agent (routes to sub-agents)
-├── storage/
-│   ├── store.py            # JSON file read/write utilities
-│   └── tools.py            # CRUD operations for all entities
-├── sub_agents/
-│   ├── task_agent.py       # Task management agent
-│   ├── schedule_agent.py    # Event scheduling agent
-│   └── notes_agent.py       # Note management agent
-└── data/                    # JSON file storage
-    ├── tasks.json
-    ├── notes.json
-    └── events.json
+Request
+   │
+   ▼
+Routers          ← HTTP boundary: request parsing, response wrapping, HTTP errors
+   │
+   ▼
+Services         ← Business logic, @log_operation decoration
+   │
+   ▼
+Repositories     ← Persistence abstraction (BaseRepository[T])
+   │
+   ▼
+Storage          ← JSON file I/O (swappable: replace only this layer for a new DB)
+   │
+   ▼
+Models           ← Pydantic v2 data contracts (Task, Note, Event, ApiResponse[T])
 ```
 
-### Agent Flow
-
-```
-User Message → Root Agent → Routes to appropriate sub-agent:
-                              │
-         ┌────────────────────┼────────────────────┐
-         │                    │                    │
-         ▼                    ▼                    ▼
-    task_agent         schedule_agent         notes_agent
-         │                    │                    │
-         ▼                    ▼                    ▼
-  storage/tools.py    storage/tools.py       storage/tools.py
-         │                    │                    │
-         ▼                    ▼                    ▼
-   tasks.json          events.json           notes.json
-```
-
-## Prerequisites
-
-- **Python 3.10+**
-- **Google Cloud Project** (for Vertex AI / Gemini API)
-- **Service Account** with Vertex AI permissions
-- **uv** (Python package manager)
-
-### Required Services
-
-1. **Vertex AI API** - Enabled in Google Cloud Console
-2. **Service Account** - With roles:
-   - `roles/aiplatform.user`
-   - `roles/logging.logWriter`
-
-## Setup
-
-### 1. Install Dependencies
-
-```bash
-cd cogni_flow_app
-uv pip install -r requirements.txt
-```
-
-### 2. Configure Environment
-
-Create a `.env` file in `cogni_flow_app/` directory:
-
-```env
-# Model configuration
-MODEL=gemini-2.5-flash
-
-# Google Cloud Project
-GOOGLE_CLOUD_PROJECT=your-project-id
-GOOGLE_GENAI_USE_VERTEXAI=1
-
-# Service Account (path to JSON key file)
-GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
-
-# Server port (optional, defaults to 8080)
-PORT=8080
-```
-
-### 3. Service Account Setup
-
-1. Go to Google Cloud Console → IAM → Service Accounts
-2. Create a new service account or use existing
-3. Grant these roles:
-   - **AI Platform User** (`roles/aiplatform.user`)
-   - **Cloud Logging Writer** (`roles/logging.logWriter`)
-4. Download the JSON key file
-5. Set `GOOGLE_APPLICATION_CREDENTIALS` to the path of this file
-
-### 4. Enable Vertex AI API
-
-```bash
-gcloud services enable aiplatform.googleapis.com
-```
-
-## Running the Server
-
-### Development Mode
-
-```bash
-cd cogni_flow_app
-uv pip install -r requirements.txt
-python ../server.py
-```
-
-Or from project root:
-
-```bash
-uv pip install -r cogni_flow_app/requirements.txt
-python server.py
-```
-
-### Production Mode
-
-```bash
-uvicorn server:app --host 0.0.0.0 --port 8080
-```
-
-## API Endpoints
-
-### Health Check
-
-```
-GET /health
-```
-
-Response:
-```json
-{"status": "healthy", "service": "cogniflow-api"}
-```
-
-### Multi-Agent Chat (SSE)
+AI (chat) path:
 
 ```
 POST /run_sse
-Content-Type: application/json
-
-{
-  "app_name": "multi_agent_app",
-  "user_id": "user123",
-  "session_id": "session456",
-  "new_message": {
-    "role": "user",
-    "parts": [{"text": "Create a task for tomorrow"}]
-  }
-}
+   │
+   ▼
+Google ADK Runner
+   │
+   ▼
+Root Agent  ──routes──►  task_agent | notes_agent | schedule_agent
+                               │
+                               ▼
+                         Tool functions  ──►  Storage layer
+                               │
+                               ▼
+                         SSE stream back to client
 ```
 
-Response: Server-Sent Events stream
+---
 
-### Multi-Agent Chat (Non-Streaming)
+## Project Structure
 
 ```
-POST /run
-Content-Type: application/json
-
-{
-  "app_name": "multi_agent_app",
-  "user_id": "user123",
-  "session_id": "session456",
-  "new_message": {
-    "role": "user",
-    "parts": [{"text": "Create a task for tomorrow"}]
-  }
-}
+cogni_flow_app/
+├── agent.py                     # Root agent, sub-agent wiring, timezone (Asia/Kolkata)
+├── config.py                    # AppConfig frozen dataclass, `config` singleton
+├── constants.py                 # VALID_PRIORITIES, VALID_STATUSES, DATE_FORMAT, TIME_DEFAULTS
+│
+├── models/
+│   ├── task.py                  # Task
+│   ├── note.py                  # Note
+│   ├── event.py                 # Event
+│   ├── requests/                # CreateTaskRequest, UpdateTaskRequest, etc.
+│   └── responses/
+│       ├── base_response.py     # ApiResponse[T]  ← universal envelope
+│       ├── task_responses.py    # TaskResponse, TaskListResponse
+│       ├── note_responses.py    # NoteResponse, NoteListResponse
+│       ├── event_responses.py   # EventResponse, EventListResponse
+│       └── common_responses.py  # DeleteResponse, HealthResponse, SessionResponse
+│
+├── repositories/
+│   ├── base.py                  # BaseRepository[T] (abstract)
+│   └── json/
+│       ├── base_json_repo.py    # BaseJsonRepository[T] — generic JSON implementation
+│       ├── task_repo.py         # TaskRepository
+│       ├── note_repo.py         # NoteRepository
+│       ├── event_repo.py        # EventRepository
+│       └── store.py             # JsonFileStore (file I/O)
+│
+├── services/
+│   ├── base.py                  # BaseService[T] (get_all, get_by_id, delete, search)
+│   ├── task_service.py          # TaskService (create, update, filter by status)
+│   ├── note_service.py          # NoteService (create, update)
+│   └── event_service.py         # EventService (create, update, upcoming)
+│
+├── tools/
+│   ├── task_tools.py            # AI-callable task functions
+│   ├── note_tools.py            # AI-callable note functions
+│   └── event_tools.py           # AI-callable event functions
+│
+├── sub_agents/
+│   ├── task_agent.py            # task_agent (ADK LlmAgent)
+│   ├── notes_agent.py           # notes_agent
+│   └── schedule_agent.py        # schedule_agent
+│
+├── routers/
+│   ├── base_router.py           # create_crud_router() factory
+│   ├── task_router.py           # /api/tasks
+│   ├── note_router.py           # /api/notes
+│   └── event_router.py          # /api/events
+│
+├── logging/
+│   ├── logger.py                # get_logger(), JsonFormatter, DevFormatter
+│   ├── decorators.py            # @log_operation
+│   └── middleware.py            # RequestLoggingMiddleware
+│
+└── storage/
+    ├── store.py                 # _read/_write/_path/next_id (raw file ops)
+    └── tools.py                 # Flat tool functions used directly by AI tools
 ```
 
-### REST API (Direct Access)
+---
 
-#### Tasks
+## Setup
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/tasks` | List all tasks |
-| GET | `/api/tasks?status=pending` | List tasks by status |
-| GET | `/api/tasks/{id}` | Get single task |
-| POST | `/api/tasks?title=...&description=...&priority=...&due_date=...` | Create task |
-| PATCH | `/api/tasks/{id}?title=...&priority=...&status=...` | Update task |
-| DELETE | `/api/tasks/{id}` | Delete task |
-| GET | `/api/tasks/search/{keyword}` | Search tasks |
+```bash
+pip install -r requirements.txt
+```
 
-#### Notes
+Create `.env` in the project root (parent of `cogni_flow_app/`):
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/notes` | List all notes |
-| GET | `/api/notes/{id}` | Get single note |
-| POST | `/api/notes?title=...&content=...&tags=...` | Create note |
-| PATCH | `/api/notes/{id}?title=...&content=...&tags=...` | Update note |
-| DELETE | `/api/notes/{id}` | Delete note |
-| GET | `/api/notes/search/{keyword}` | Search notes |
+```env
+MODEL=gemini-2.5-flash
+GOOGLE_CLOUD_PROJECT=your-project-id
+GOOGLE_GENAI_USE_VERTEXAI=1
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+PORT=8080
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+```
 
-#### Events
+```bash
+python server.py
+```
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/events` | List all events |
-| GET | `/api/events?from_date=...` | List events from date |
-| GET | `/api/events/{id}` | Get single event |
-| POST | `/api/events?title=...&start_time=...&end_time=...&location=...` | Create event |
-| PATCH | `/api/events/{id}?title=...&start_time=...` | Update event |
-| DELETE | `/api/events/{id}` | Delete event |
-| GET | `/api/events/search/{keyword}` | Search events |
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `MODEL` | `gemini-2.5-flash` | Gemini model identifier |
+| `GOOGLE_CLOUD_PROJECT` | — | GCP project ID (required for Vertex AI) |
+| `GOOGLE_GENAI_USE_VERTEXAI` | `1` | `1` = Vertex AI, `0` = AI Studio |
+| `GOOGLE_APPLICATION_CREDENTIALS` | — | Service account JSON path |
+| `PORT` | `8080` | Uvicorn port |
+| `ALLOWED_ORIGINS` | `http://localhost:5173,...` | Comma-separated CORS origins |
+
+---
+
+## API Response Shape
+
+Every endpoint wraps its payload in `ApiResponse[T]`:
+
+```python
+class ApiResponse(BaseModel, Generic[T]):
+    success: bool
+    data:    Optional[T]    = None
+    error:   Optional[str]  = None
+    message: Optional[str]  = None
+```
+
+Constructors:
+
+```python
+ApiResponse.ok(data, message=None)   # success=True
+ApiResponse.fail(error)              # success=False, data=None
+```
+
+Always check `success` before reading `data`. A `200 OK` HTTP status does not guarantee success — validation errors return `success: false` with HTTP 200.
+
+---
+
+## REST Endpoints
+
+### Health
+
+```
+GET  /health
+```
+
+Returns `{ "status": "healthy", "service": "cogniflow-api" }`.
 
 ### Session Management
+
+A session must exist before calling `/run_sse`.
 
 ```
 POST /apps/{app_name}/users/{user_id}/sessions/{session_id}
 GET  /apps/{app_name}/users/{user_id}/sessions
 ```
 
-## Natural Language Date Parsing
-
-The schedule agent supports natural language date/time:
-
-### Date Examples
-
-| Input | Output |
-|-------|--------|
-| `today` | Current date |
-| `tomorrow` | Next day |
-| `day after tomorrow` | 2 days from now |
-| `in 3 days` | 3 days from now |
-| `in 2 weeks` | 2 weeks from now |
-| `next monday` | Next Monday |
-| `April 15` | April 15 (current year) |
-| `April 15, 2026` | April 15, 2026 |
-
-### Time Examples
-
-| Input | Output |
-|-------|--------|
-| `3pm` / `at 3pm` | 15:00:00 |
-| `9:30am` | 09:30:00 |
-| `noon` / `midday` | 12:00:00 |
-| `midnight` | 00:00:00 |
-| `night` | 21:00:00 |
-| `morning` | 09:00:00 |
-| `afternoon` | 14:00:00 |
-| `evening` | 18:00:00 |
-
-### Duration Examples
-
-| Input | Effect |
-|-------|--------|
-| `for 1 hour` | End time = start + 1 hour |
-| `for 30 minutes` | End time = start + 30 minutes |
-
-## Data Flow
-
-### 1. Agent Routing Flow
+### Chat — SSE Streaming
 
 ```
-User: "Create a task for tomorrow"
-  ↓
-Root Agent (agent.py)
-  ↓ (classifies intent)
-task_agent
-  ↓ (calls smart_create_event tool)
-smart_create_event (schedule_agent.py)
-  ↓ (parses "tomorrow" using python-dateutil)
-create_event (storage/tools.py)
-  ↓
-tasks.json
+POST /run_sse
+Content-Type: application/json
+
+{
+  "app_name": "cogni_flow_app",
+  "user_id":  "user_03011315",
+  "session_id": "<uuid>",
+  "new_message": {
+    "role": "user",
+    "parts": [{ "text": "Create a task: Review PR by tomorrow 3pm" }]
+  }
+}
 ```
 
-### 2. API Request Flow
+Returns `text/event-stream`. Events arrive in this shape:
 
 ```
-Frontend → POST /run_sse
-  ↓
-FastAPI (server.py)
-  ↓
-Runner (Google ADK)
-  ↓
-Root Agent → Sub-Agent
-  ↓
-Storage Tool
-  ↓
-JSON File
+data: {"content": {"parts": [{"text": "..."}]}, "author": "task_agent"}
+data: {"turn_complete": true}
+data: [DONE]
 ```
 
-### 3. Direct API Flow (REST)
+### Tasks — `/api/tasks`
+
+| Method | Path | Params | Returns |
+|---|---|---|---|
+| `GET` | `/api/tasks` | `?status=pending\|in_progress\|done` (optional) | `ApiResponse<Task[]>` |
+| `GET` | `/api/tasks/{id}` | — | `ApiResponse<Task>` |
+| `GET` | `/api/tasks/search/{keyword}` | — | `ApiResponse<Task[]>` |
+| `POST` | `/api/tasks` | form: `title`, `description`, `priority`, `due_date` | `ApiResponse<Task>` |
+| `PATCH` | `/api/tasks/{id}` | form: any task fields | `ApiResponse<Task>` |
+| `DELETE` | `/api/tasks/{id}` | — | `ApiResponse<DeleteResponse>` |
+
+**Task model:**
 
 ```
-Frontend → GET /api/tasks
-  ↓
-FastAPI endpoint
-  ↓
-storage/tools.list_tasks()
-  ↓
-store._read("tasks")
-  ↓
-tasks.json
+id:          int
+title:       str
+description: str        = ""
+priority:    str        = "medium"   # "low" | "medium" | "high"
+status:      str        = "pending"  # "pending" | "in_progress" | "done"
+due_date:    str | None = None       # YYYY-MM-DD
+created_at:  str                     # ISO 8601
+updated_at:  str        = ""
 ```
 
-## Storage Structure
+### Notes — `/api/notes`
 
-### tasks.json
+| Method | Path | Params | Returns |
+|---|---|---|---|
+| `GET` | `/api/notes` | — | `ApiResponse<Note[]>` |
+| `GET` | `/api/notes/{id}` | — | `ApiResponse<Note>` |
+| `GET` | `/api/notes/search/{keyword}` | — | `ApiResponse<Note[]>` |
+| `POST` | `/api/notes` | form: `title`, `content`, `tags` | `ApiResponse<Note>` |
+| `PATCH` | `/api/notes/{id}` | form: any note fields | `ApiResponse<Note>` |
+| `DELETE` | `/api/notes/{id}` | — | `ApiResponse<DeleteResponse>` |
+
+**Note model:**
+
+```
+id:         int
+title:      str
+content:    str       = ""
+tags:       list[str] = []   # stored as list; POST/PATCH accepts comma-separated string
+created_at: str
+updated_at: str       = ""
+```
+
+### Events — `/api/events`
+
+| Method | Path | Params | Returns |
+|---|---|---|---|
+| `GET` | `/api/events` | — | `ApiResponse<Event[]>` |
+| `GET` | `/api/events/upcoming` | `?from_date=YYYY-MM-DD` (optional) | `ApiResponse<Event[]>` |
+| `GET` | `/api/events/{id}` | — | `ApiResponse<Event>` |
+| `GET` | `/api/events/search/{keyword}` | — | `ApiResponse<Event[]>` |
+| `POST` | `/api/events` | form: `title`, `start_time`, `end_time`, `description`, `location` | `ApiResponse<Event>` |
+| `PATCH` | `/api/events/{id}` | form: any event fields | `ApiResponse<Event>` |
+| `DELETE` | `/api/events/{id}` | — | `ApiResponse<DeleteResponse>` |
+
+**Event model:**
+
+```
+id:          int
+title:       str
+description: str = ""
+start_time:  str          # YYYY-MM-DDTHH:MM:SS
+end_time:    str          # YYYY-MM-DDTHH:MM:SS
+location:    str = ""
+created_at:  str
+```
+
+---
+
+## Multi-Agent System
+
+### Root Agent (`agent.py`)
+
+- **ADK name:** `cogni_flow_app`
+- **Model:** `config.model` (Gemini 2.5 Flash via Vertex AI)
+- **Timezone context:** Asia/Kolkata (IST) injected into all agent instructions
+- **Routing:** inspects user intent and delegates to one sub-agent per turn
+
+### Sub-Agents
+
+| Agent | ADK name | Domain | Tools registered |
+|---|---|---|---|
+| Task Agent | `task_agent` | Tasks | `create_task`, `list_tasks`, `get_task`, `update_task`, `delete_task`, `search_tasks` |
+| Notes Agent | `notes_agent` | Notes | `create_note`, `list_notes`, `get_note`, `update_note`, `delete_note`, `search_notes` |
+| Schedule Agent | `schedule_agent` | Calendar events | `create_event`, `list_events`, `get_event`, `update_event`, `delete_event`, `search_events` |
+
+### Natural Language Date/Time Resolution
+
+Agents resolve all relative expressions **before** calling tool functions. Tools always receive dates in strict ISO format.
+
+| Expression | Resolved format |
+|---|---|
+| `today`, `tomorrow`, `day after tomorrow` | `YYYY-MM-DD` |
+| `in 3 days`, `in 2 weeks` | `YYYY-MM-DD` |
+| `next monday`, `April 15` | `YYYY-MM-DD` |
+| `3pm`, `9:30am` | time portion of `YYYY-MM-DDTHH:MM:SS` |
+| `morning`, `afternoon`, `evening`, `night` | `09:00`, `14:00`, `18:00`, `21:00` |
+| `noon` / `midday` | `12:00` |
+| `midnight` | `00:00` |
+| `for 1 hour`, `for 30 minutes` | `end_time = start_time + duration` |
+
+---
+
+## Logging
+
+### Log Modes
+
+| Mode | Condition | Format |
+|---|---|---|
+| Production | `GOOGLE_GENAI_USE_VERTEXAI=1` | JSON (Cloud Logging compatible) |
+| Development | `GOOGLE_GENAI_USE_VERTEXAI=0` | Colored terminal output (`HH:MM:SS [LEVEL] logger:line — message`) |
+
+### JSON Log Schema (production)
 
 ```json
-[
-  {
-    "id": 1,
-    "title": "Build login page",
-    "description": "Implement OAuth2 login",
-    "priority": "high",
-    "due_date": "2026-04-15",
-    "status": "pending",
-    "created_at": "2026-04-08T21:50:23.645974",
-    "updated_at": "2026-04-08T21:50:23.645986"
-  }
-]
+{
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "severity":  "INFO",
+  "logger":    "cogniflow",
+  "message":   "...",
+  "module":    "task_service",
+  "funcName":  "create",
+  "lineNo":    42
+}
 ```
 
-### notes.json
+### `@log_operation` Decorator
 
-```json
-[
-  {
-    "id": 1,
-    "title": "Meeting Notes",
-    "content": "Discussed project timeline...",
-    "tags": ["work", "meeting"],
-    "created_at": "2026-04-08T21:50:23.645974",
-    "updated_at": "2026-04-08T21:50:23.645986"
-  }
-]
-```
-
-### events.json
-
-```json
-[
-  {
-    "id": 1,
-    "title": "Team Standup",
-    "description": "Daily standup meeting",
-    "start_time": "2026-04-09T09:00:00",
-    "end_time": "2026-04-09T09:30:00",
-    "location": "Google Meet",
-    "created_at": "2026-04-09T11:44:52.166399"
-  }
-]
-```
-
-## Process Flow
-
-### 1. Server Startup
+Applied to every service method. Captures `operation`, `duration_ms`, `result_type`, and `error` on failure.
 
 ```
-server.py starts
-  ↓
-Load environment variables
-  ↓
-Initialize Google Cloud Logging
-  ↓
-Import root_agent (loads sub-agents)
-  ↓
-Create FastAPI app with CORS middleware
-  ↓
-Start uvicorn server on PORT 8080
+INFO    on success
+WARNING on ValueError
+ERROR   on unhandled exceptions (with exc_info)
 ```
 
-### 2. Chat Request Processing
-
-```
-1. User sends message via POST /run_sse
-2. FastAPI receives ChatRequest
-3. Create or get existing session
-4. Runner.run_async() processes message
-5. Root agent classifies intent
-6. Routes to appropriate sub-agent
-7. Sub-agent calls storage tool function
-8. Storage tool reads/writes JSON file
-9. Response flows back through runner
-10. SSE stream sends response to frontend
-```
-
-### 3. Direct API Request Processing
-
-```
-1. Frontend calls GET /api/tasks
-2. FastAPI route handler called
-3. Calls list_tasks() from storage/tools.py
-4. Reads from tasks.json via store._read()
-5. Returns JSON response to frontend
-```
-
-## Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| google-adk | latest | Agent framework |
-| fastapi | latest | Web framework |
-| uvicorn | latest | ASGI server |
-| google-cloud-logging | latest | Cloud logging |
-| python-dateutil | latest | Date parsing |
-| python-dotenv | latest | Environment config |
-| pydantic | latest | Data validation |
-| sse-starlette | latest | SSE support |
-
-## CORS Configuration
-
-The server allows CORS requests from:
-- `http://localhost:5173` (Vite dev server)
-- `http://localhost:5174`
-- `http://127.0.0.1:5173`
-- `http://127.0.0.1:5174`
-
-To add more origins, edit `server.py`:
+Usage:
 
 ```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "https://your-production-domain.com",
-    ],
+from cogni_flow_app.logging.decorators import log_operation
+
+@log_operation("create_task")
+def create(self, data: dict) -> Task:
     ...
-)
 ```
 
-## Error Handling
+### HTTP Request Middleware (`RequestLoggingMiddleware`)
 
-All endpoints return appropriate HTTP status codes:
+Logs every inbound request and outbound response. Skips `/health`, `/docs`, `/openapi.json`, `/redoc`.
 
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 400 | Bad Request |
-| 404 | Not Found |
-| 500 | Server Error |
-
-Error responses include a JSON body:
-
-```json
-{"detail": "Error description"}
+```
+-> POST /run_sse    request_id=a1b2c3d4  client=127.0.0.1
+<- 200 POST /run_sse    duration_ms=1240
 ```
 
-## Development
+Adds `X-Request-ID` (8-char UUID) to every response.
 
-### Adding New Sub-Agents
+---
 
-1. Create new file in `sub_agents/`:
+## Swapping the Storage Backend
+
+Only the repository layer changes. Services, tools, routers, and agents are completely unaffected.
+
+**Step 1 — Implement `BaseRepository[T]`:**
+
 ```python
-# sub_agents/custom_agent.py
-from google.adk.agents import Agent
+from cogni_flow_app.repositories.base import BaseRepository
+from cogni_flow_app.models.task import Task
 
-custom_agent = Agent(
-    name="custom_agent",
-    model=os.getenv("MODEL", "gemini-2.5-flash"),
-    description="Description of what it does",
-    instruction="Instructions for the agent...",
-    tools=[...],
-)
+class PostgresTaskRepository(BaseRepository[Task]):
+    def get_all(self) -> list[Task]: ...
+    def get_by_id(self, record_id: int) -> Task | None: ...
+    def create(self, data: dict) -> Task: ...
+    def update(self, record_id: int, data: dict) -> Task | None: ...
+    def delete(self, record_id: int) -> bool: ...
+    def search(self, keyword: str) -> list[Task]: ...
 ```
 
-2. Import and add to root_agent in `agent.py`:
+**Step 2 — Wire it into the service:**
+
 ```python
-from .sub_agents.custom_agent import custom_agent
+# services/task_service.py
+from .postgres_task_repo import PostgresTaskRepository
 
-root_agent = Agent(
-    ...
-    sub_agents=[task_agent, schedule_agent, notes_agent, custom_agent],
-)
+task_service = TaskService(PostgresTaskRepository())
 ```
 
-### Adding New Storage Functions
+No other files need to change.
 
-1. Add functions to `storage/tools.py`:
-```python
-def create_custom(title: str, ...) -> dict:
-    data = _read("custom")
-    item = {...}
-    data.append(item)
-    _write("custom", data)
-    return item
+---
+
+## Adding a New Entity (Open/Closed Principle)
+
+To add a new entity (e.g. `Habit`) without modifying any existing file:
+
+1. **Model** — `models/habit.py` with a Pydantic `Habit` class
+2. **Request/Response models** — `models/requests/habit_requests.py`, `models/responses/habit_responses.py`
+3. **Repository** — `repositories/json/habit_repo.py` extending `BaseJsonRepository[Habit]`
+4. **Service** — `services/habit_service.py` extending `BaseService[Habit]`
+5. **Tools** — `tools/habit_tools.py` with AI-callable functions backed by the service
+6. **Sub-agent** — `sub_agents/habit_agent.py`, register tools
+7. **Router** — `routers/habit_router.py` using `create_crud_router()`, add any custom endpoints
+8. **Wire up** — include the router in `server.py`; add the sub-agent to `root_agent` in `agent.py`
+
+Zero changes to existing files.
+
+---
+
+## CORS
+
+Origins are configured via the `ALLOWED_ORIGINS` environment variable (comma-separated). Defaults:
+
+```
+http://localhost:5173
+http://localhost:5174
+http://127.0.0.1:5173
+http://127.0.0.1:5174
 ```
 
-2. Import and use in your agent's tools list.
-
-## Troubleshooting
-
-### Import Errors
-
-If you see `ModuleNotFoundError`:
-```bash
-uv pip install -r requirements.txt
-```
-
-### Google Auth Errors
-
-1. Verify `GOOGLE_APPLICATION_CREDENTIALS` path
-2. Check service account has required roles
-3. Ensure Vertex AI API is enabled
-
-### CORS Errors
-
-Check that frontend URL is in `allow_origins` list
-
-### JSON Parse Errors
-
-Check that JSON files in `data/` are valid:
-```bash
-python -c "import json; json.load(open('data/tasks.json'))"
-```
+To add a new origin, append it to `ALLOWED_ORIGINS` in `.env`.
