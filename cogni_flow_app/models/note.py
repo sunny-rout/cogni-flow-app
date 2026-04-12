@@ -7,4 +7,4 @@ class Note(BaseModel):
     content: str = ""
     tags: list[str] = []
     created_at: str
-    updated_at: str
+    updated_at: str = ""

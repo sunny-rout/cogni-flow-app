@@ -10,4 +10,4 @@ class Task(BaseModel):
     status: str = "pending"
     due_date: Optional[str] = None
     created_at: str
-    updated_at: str
+    updated_at: str = ""
