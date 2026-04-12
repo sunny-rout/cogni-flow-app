@@ -59,9 +59,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const mapped: Session[] = stored.map((s) => ({ id: s.id, createdAt: s.created_at }))
       setSessions(mapped)
       setActiveSessionId(mapped[0].id)
-      stored.forEach((s) => {
-        chatClient.createSession(userId, s.id).catch(() => {})
-      })
     } else {
       const sessionId = generateId()
       chatClient.createSession(userId, sessionId).catch(() => {})
