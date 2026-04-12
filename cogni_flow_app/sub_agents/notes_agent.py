@@ -1,25 +1,29 @@
-import os
-import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from google.adk.agents import Agent
-from cogni_flow_app.storage.tools import (
+from cogni_flow_app.config import config
+from cogni_flow_app.tools.note_tools import (
     create_note, list_notes, get_note,
-    update_note, delete_note, search_notes
+    update_note, delete_note, search_notes,
 )
 
-logger = logging.getLogger(__name__)
+
+def _now() -> str:
+    return datetime.now(ZoneInfo("Asia/Kolkata")).strftime(
+        "%A, %B %d, %Y %I:%M %p IST"
+    )
+
 
 notes_agent = Agent(
     name="notes_agent",
-    model=os.getenv("MODEL", "gemini-2.5-flash"),
-    description="Handles note creation, retrieval, search, update, and deletion.",
-    instruction="""You are a notes management specialist.
-        - Use create_note to save a new note with title, content, and optional tags
-        - Use list_notes to show all notes
-        - Use get_note to retrieve a specific note by ID
-        - Use search_notes to find notes by keyword in title or content
-        - Use update_note to edit an existing note's title, content, or tags
-        - Use delete_note to permanently remove a note
-        Always confirm the note ID and title when creating or modifying notes.""",
-    tools=[create_note, list_notes, get_note,
-           update_note, delete_note, search_notes],
+    model=config.model,
+    description="Manages notes — create, list, update, delete, search.",
+    instruction=f"""You are a note-taking assistant.
+Today is: {_now()}
+
+Manage notes with: title, content, tags (comma-separated).
+Show title, content preview, and tags when listing notes.
+Confirm every action after completing it.
+""",
+    tools=[create_note, list_notes, get_note, update_note, delete_note, search_notes],
 )
