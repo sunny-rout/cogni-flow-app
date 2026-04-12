@@ -17,7 +17,9 @@ interface SessionContextType {
 const SessionContext = createContext<SessionContextType | undefined>(undefined)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [userId] = useState<string>(CONFIG.DEFAULT_USER_ID)
+  const [userId] = useState<string>(
+    () => localStorage.getItem("cogniflow_user_id") || CONFIG.DEFAULT_USER_ID
+  )
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>("")
   const initialized = useRef(false)
