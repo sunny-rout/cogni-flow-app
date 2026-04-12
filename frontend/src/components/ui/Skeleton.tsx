@@ -8,7 +8,7 @@ interface SkeletonProps {
 export default function Skeleton({ width, height, rounded = false, className = "" }: SkeletonProps) {
   return (
     <div
-      className={`animate-pulse bg-slate-700 ${rounded ? "rounded-full" : "rounded"} ${className}`}
+      className={`animate-pulse bg-card ${rounded ? "rounded-full" : "rounded"} ${className}`}
       style={{ width, height }}
     />
   )

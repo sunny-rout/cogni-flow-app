@@ -39,7 +39,7 @@ export default function Layout({ children, title }: LayoutProps) {
   const { toasts, removeToast } = useToast()
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden">
+    <div className="flex h-screen bg-bg overflow-hidden">
       <div className="hidden lg:block">
         <Sidebar />
       </div>
@@ -62,7 +62,7 @@ export default function Layout({ children, title }: LayoutProps) {
           {children}
         </main>
 
-        <nav className="lg:hidden flex border-t border-slate-800 bg-slate-900">
+        <nav className="lg:hidden flex border-t border-border bg-surface">
           {mobileNavItems.map((item) => (
             <NavLink
               key={item.path}
@@ -70,7 +70,7 @@ export default function Layout({ children, title }: LayoutProps) {
               end={item.path === "/"}
               className={({ isActive }) =>
                 `flex-1 flex flex-col items-center py-2 text-xs transition-colors ${
-                  isActive ? "text-white" : "text-slate-500 hover:text-slate-300"
+                  isActive ? "text-text-primary" : "text-muted hover:text-text-primary"
                 }`
               }
             >

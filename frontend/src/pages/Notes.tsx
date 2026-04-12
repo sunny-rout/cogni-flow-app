@@ -108,7 +108,7 @@ export default function Notes() {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               placeholder="Search notes..."
-              className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-4 py-2 bg-surface border border-border rounded-lg text-text-primary text-sm placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             />
             <Button variant="secondary" onClick={handleSearch} size="md">Search</Button>
           </div>
@@ -118,7 +118,7 @@ export default function Notes() {
         {isLoading && notes.length === 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-slate-800 rounded-lg p-4 space-y-3">
+              <div key={i} className="bg-surface rounded-lg p-4 space-y-3">
                 <Skeleton height="20px" width="60%" />
                 <Skeleton height="14px" width="100%" />
                 <Skeleton height="14px" width="80%" />
@@ -143,24 +143,24 @@ export default function Notes() {
               <Card key={note.id}>
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
-                    <h3 className="font-semibold text-white text-sm flex-1 truncate">{note.title}</h3>
+                    <h3 className="font-semibold text-text-primary text-sm flex-1 truncate">{note.title}</h3>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => openEdit(note)}
-                        className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                        className="text-xs text-muted hover:text-text-primary transition-colors"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(note)}
-                        className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+                        className="text-xs text-muted hover:text-danger transition-colors"
                       >
                         Delete
                       </button>
                     </div>
                   </div>
                   {note.content && (
-                    <p className="text-slate-400 text-xs mb-3 leading-relaxed">
+                    <p className="text-muted text-xs mb-3 leading-relaxed">
                       {truncateText(note.content, 120)}
                     </p>
                   )}

@@ -9,7 +9,7 @@ interface CardProps {
 export default function Card({ children, accentColor, className = "" }: CardProps) {
   return (
     <div
-      className={`relative bg-slate-800 rounded-lg shadow overflow-hidden ${className}`}
+      className={`relative bg-surface rounded-lg shadow overflow-hidden border border-border/50 ${className}`}
     >
       {accentColor && (
         <div

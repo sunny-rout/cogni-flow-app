@@ -6,9 +6,9 @@ interface ToastProps {
 }
 
 const variantClasses = {
-  success: "bg-green-700 border-green-600",
-  error: "bg-red-700 border-red-600",
-  info: "bg-teal-700 border-teal-600",
+  success: "bg-success/20 border-success text-text-primary",
+  error: "bg-danger/20 border-danger text-text-primary",
+  info: "bg-accent/20 border-accent text-text-primary",
 }
 
 const icons = {
@@ -33,7 +33,7 @@ export default function Toast({ toast, onDismiss }: ToastProps) {
   return (
     <div
       className={`
-        flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg text-white text-sm
+        flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg text-sm
         min-w-64 max-w-sm animate-slide-up
         ${variantClasses[toast.type]}
       `}
@@ -42,7 +42,7 @@ export default function Toast({ toast, onDismiss }: ToastProps) {
       <span className="flex-1">{toast.message}</span>
       <button
         onClick={() => onDismiss(toast.id)}
-        className="text-white/70 hover:text-white transition-colors ml-1"
+        className="text-muted hover:text-text-primary transition-colors ml-1"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

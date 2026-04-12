@@ -44,11 +44,11 @@ export default function Sidebar() {
   const { userId, sessions, createSession, switchSession, sessionId } = useSession()
 
   return (
-    <aside className="w-[220px] bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-30">
-      <div className="px-5 py-5 border-b border-slate-800">
+    <aside className="w-[220px] bg-surface border-r border-border flex flex-col h-screen fixed left-0 top-0 z-30">
+      <div className="px-5 py-5 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-xl">⚡</span>
-          <span className="text-lg font-bold" style={{ color: "#8b5cf6" }}>CogniFlow</span>
+          <span className="text-lg font-bold text-accent">CogniFlow</span>
         </div>
       </div>
 
@@ -61,8 +61,8 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
                 isActive
-                  ? "bg-slate-700/80 text-white"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                  ? "bg-card text-text-primary"
+                  : "text-muted hover:bg-card/60 hover:text-text-primary"
               }`
             }
           >
@@ -72,7 +72,7 @@ export default function Sidebar() {
         ))}
 
         <div className="pt-4 pb-1">
-          <div className="text-xs text-slate-500 uppercase tracking-wider px-3 mb-2">Sessions</div>
+          <div className="text-xs text-muted uppercase tracking-wider px-3 mb-2">Sessions</div>
           <div className="space-y-0.5 max-h-36 overflow-y-auto">
             {sessions.map((s) => (
               <button
@@ -80,8 +80,8 @@ export default function Sidebar() {
                 onClick={() => switchSession(s.id)}
                 className={`w-full text-left px-3 py-2 rounded-lg text-xs font-mono transition-colors ${
                   s.id === sessionId
-                    ? "bg-slate-700 text-white"
-                    : "text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+                    ? "bg-card text-text-primary"
+                    : "text-muted hover:bg-card/60 hover:text-text-primary"
                 }`}
               >
                 {s.id.slice(0, 12)}...
@@ -90,7 +90,7 @@ export default function Sidebar() {
           </div>
           <button
             onClick={createSession}
-            className="w-full mt-2 px-3 py-2 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-left flex items-center gap-1.5"
+            className="w-full mt-2 px-3 py-2 text-xs text-muted hover:text-text-primary hover:bg-card/60 rounded-lg transition-colors text-left flex items-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -100,9 +100,9 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      <div className="px-4 py-3 border-t border-slate-800">
-        <div className="text-xs text-slate-600 mb-0.5">Signed in as</div>
-        <div className="text-xs text-slate-400 font-mono truncate">{userId}</div>
+      <div className="px-4 py-3 border-t border-border">
+        <div className="text-xs text-muted/60 mb-0.5">Signed in as</div>
+        <div className="text-xs text-muted font-mono truncate">{userId}</div>
       </div>
     </aside>
   )

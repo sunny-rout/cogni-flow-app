@@ -36,8 +36,8 @@ export default function Chat() {
           {messages.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center h-full min-h-64 text-center">
               <div className="text-5xl mb-4 opacity-40">⚡</div>
-              <p className="text-slate-400 font-medium">Start a conversation with CogniFlow</p>
-              <p className="text-slate-600 text-sm mt-1">Ask me to manage your tasks, notes, or events</p>
+              <p className="text-muted font-medium">Start a conversation with CogniFlow</p>
+              <p className="text-muted/60 text-sm mt-1">Ask me to manage your tasks, notes, or events</p>
             </div>
           )}
 
@@ -58,16 +58,16 @@ export default function Chat() {
                 <div
                   className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
                     msg.role === "user"
-                      ? "bg-slate-700 text-white rounded-tr-sm"
-                      : "bg-slate-800 text-slate-100 rounded-tl-sm border border-slate-700"
+                      ? "bg-card text-text-primary rounded-tr-sm"
+                      : "bg-surface text-text-primary rounded-tl-sm border border-border"
                   }`}
                 >
                   {msg.text}
                   {msg.isStreaming && msg.text.length === 0 && (
                     <span className="inline-flex items-center gap-0.5">
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <span className="w-1.5 h-1.5 bg-muted rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1.5 h-1.5 bg-muted rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1.5 h-1.5 bg-muted rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                     </span>
                   )}
                 </div>
@@ -78,7 +78,7 @@ export default function Chat() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="border-t border-slate-800 px-4 py-4 bg-slate-950 flex-shrink-0">
+        <div className="border-t border-border px-4 py-4 bg-bg flex-shrink-0">
           <div className="flex gap-3 items-end max-w-4xl mx-auto">
             <textarea
               value={input}
@@ -86,14 +86,14 @@ export default function Chat() {
               onKeyDown={handleKeyDown}
               placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
               rows={1}
-              className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="flex-1 px-4 py-3 bg-surface border border-border rounded-xl text-text-primary text-sm placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-none"
               style={{ minHeight: "48px", maxHeight: "160px" }}
               disabled={isStreaming || !sessionId}
             />
             <button
               onClick={handleSend}
               disabled={isStreaming || !input.trim() || !sessionId}
-              className="px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-colors flex-shrink-0"
+              className="px-4 py-3 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-colors flex-shrink-0"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

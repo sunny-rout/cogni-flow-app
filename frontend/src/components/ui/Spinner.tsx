@@ -11,7 +11,7 @@ const sizeClasses = {
 export default function Spinner({ size = "md" }: SpinnerProps) {
   return (
     <div
-      className={`${sizeClasses[size]} rounded-full border-slate-600 border-t-blue-500 animate-spin`}
+      className={`${sizeClasses[size]} rounded-full border-border border-t-accent animate-spin`}
     />
   )
 }

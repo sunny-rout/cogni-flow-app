@@ -132,15 +132,15 @@ export default function Tasks() {
   return (
     <Layout title="Tasks">
       <div className="p-6 max-w-5xl mx-auto space-y-5">
-        <div className="flex gap-1 bg-slate-900 p-1 rounded-lg w-fit">
+        <div className="flex gap-1 bg-surface p-1 rounded-lg w-fit">
           {filterTabs.map((tab) => (
             <button
               key={tab.value}
               onClick={() => handleFilterChange(tab.value)}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 filter === tab.value
-                  ? "bg-slate-700 text-white"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-card text-text-primary"
+                  : "text-muted hover:text-text-primary"
               }`}
             >
               {tab.label}
@@ -156,7 +156,7 @@ export default function Tasks() {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               placeholder="Search tasks..."
-              className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-4 py-2 bg-surface border border-border rounded-lg text-text-primary text-sm placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             />
             <Button variant="secondary" onClick={handleSearch} size="md">Search</Button>
           </div>
@@ -166,7 +166,7 @@ export default function Tasks() {
         {isLoading && tasks.length === 0 ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-slate-800 rounded-lg p-4 space-y-3">
+              <div key={i} className="bg-surface rounded-lg p-4 space-y-3">
                 <Skeleton height="20px" width="50%" />
                 <Skeleton height="14px" width="30%" />
                 <div className="flex gap-2">
@@ -191,21 +191,21 @@ export default function Tasks() {
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white text-sm truncate">{task.title}</h3>
+                      <h3 className="font-semibold text-text-primary text-sm truncate">{task.title}</h3>
                       {task.due_date && (
-                        <p className="text-xs text-slate-500 mt-0.5">Due {formatDate(task.due_date)}</p>
+                        <p className="text-xs text-muted mt-0.5">Due {formatDate(task.due_date)}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => openEdit(task)}
-                        className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                        className="text-xs text-muted hover:text-text-primary transition-colors"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(task)}
-                        className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+                        className="text-xs text-muted hover:text-danger transition-colors"
                       >
                         Delete
                       </button>
