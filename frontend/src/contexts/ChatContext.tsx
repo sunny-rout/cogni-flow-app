@@ -4,6 +4,7 @@ import { chatClient } from "../services/chatClient"
 import { streamHandler } from "../services/streamHandler"
 import { generateId } from "../utils"
 import { useSession } from "./SessionContext"
+import { storage } from "../lib/storage"
 import type { ChatMessage } from "../types"
 
 interface ChatContextType {
@@ -31,21 +32,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoadedSessions((prev) => new Set(prev).add(sessionId))
     setIsLoadingHistory(true)
 
-    chatClient.getSessionHistory(userId, sessionId).then((history) => {
-      if (history.length > 0) {
-        const loaded: ChatMessage[] = history.map((m) => ({
-          id: generateId(),
-          role: m.role as "user" | "model",
-          text: m.text,
-          author: m.author,
-          timestamp: m.timestamp ?? new Date().toISOString(),
-        }))
-        setMessagesBySession((prev) => ({ ...prev, [sessionId]: loaded }))
-      }
-    }).catch(() => {
-    }).finally(() => {
-      setIsLoadingHistory(false)
-    })
+    const stored = storage.messages.getBySession(sessionId)
+    if (stored.length > 0) {
+      const loaded: ChatMessage[] = stored.map((m) => ({
+        id: m.id,
+        role: m.role,
+        text: m.content,
+        author: m.agent_name ?? undefined,
+        timestamp: m.created_at,
+      }))
+      setMessagesBySession((prev) => ({ ...prev, [sessionId]: loaded }))
+    }
+
+    setIsLoadingHistory(false)
   }, [sessionId, userId])
 
   const setMessages = (sessionKey: string, updater: (prev: ChatMessage[]) => ChatMessage[]) => {
@@ -62,10 +61,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       text,
       timestamp: new Date().toISOString(),
     }
+    storage.messages.create({ id: userMsg.id, session_id: sessionId, role: "user", content: text, agent_name: null, created_at: userMsg.timestamp })
+    storage.sessions.update(sessionId, { updated_at: userMsg.timestamp })
     setMessages(sessionId, (prev) => [...prev, userMsg])
 
+    const assistantMsgId = generateId()
     const assistantMsg: ChatMessage = {
-      id: generateId(),
+      id: assistantMsgId,
       role: "model",
       text: "",
       author: "assistant",
@@ -75,11 +77,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setMessages(sessionId, (prev) => [...prev, assistantMsg])
     setIsStreaming(true)
 
+    let finalText = ""
+    let finalAuthor = "assistant"
+
     try {
       const stream = await chatClient.sendMessage(userId, sessionId, text)
 
       await streamHandler.handle(stream, {
         onToken: (token) => {
+          finalText += token
           setMessages(sessionId, (prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
@@ -90,6 +96,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           })
         },
         onAuthor: (author) => {
+          finalAuthor = author
           setMessages(sessionId, (prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
@@ -108,6 +115,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             }
             return updated
           })
+          const now = new Date().toISOString()
+          storage.messages.create({ id: assistantMsgId, session_id: sessionId, role: "model", content: finalText, agent_name: finalAuthor, created_at: now })
+          storage.sessions.update(sessionId, { updated_at: now })
           setIsStreaming(false)
         },
         onError: () => {

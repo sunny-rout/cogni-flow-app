@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { CONFIG } from "../config/env"
 import { chatClient } from "../services/chatClient"
 import { generateId } from "../utils"
+import { storage } from "../lib/storage"
 import type { Session } from "../types"
 
 interface SessionContextType {
@@ -21,7 +22,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [activeSessionId, setActiveSessionId] = useState<string>("")
 
   const addSession = (sessionId: string) => {
-    const session: Session = { id: sessionId, createdAt: new Date().toISOString() }
+    const now = new Date().toISOString()
+    storage.sessions.create({ id: sessionId, user_id: userId, title: "New Chat", created_at: now, updated_at: now })
+    const session: Session = { id: sessionId, createdAt: now }
     setSessions((prev) => [...prev, session])
     setActiveSessionId(sessionId)
   }
@@ -40,15 +43,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    const init = async () => {
-      const sessionId = generateId()
-      try {
-        await chatClient.createSession(userId, sessionId)
-      } catch {
+    const stored = storage.sessions.getAll(userId)
+    if (stored.length > 0) {
+      const mapped: Session[] = stored.map((s) => ({ id: s.id, createdAt: s.created_at }))
+      setSessions(mapped)
+      setActiveSessionId(mapped[0].id)
+      chatClient.createSession(userId, mapped[0].id).catch(() => {})
+      stored.slice(1).forEach((s) => {
+        chatClient.createSession(userId, s.id).catch(() => {})
+      })
+    } else {
+      const init = async () => {
+        const sessionId = generateId()
+        try {
+          await chatClient.createSession(userId, sessionId)
+        } catch {
+        }
+        addSession(sessionId)
       }
-      addSession(sessionId)
+      init()
     }
-    init()
   }, [])
 
   return (
