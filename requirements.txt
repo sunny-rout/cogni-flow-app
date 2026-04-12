@@ -1,0 +1,8 @@
+google-adk
+fastapi
+uvicorn
+google-cloud-logging
+python-dateutil
+python-dotenv
+pydantic
+sse-starlette
