@@ -5,9 +5,9 @@ export const PRIORITY_LABELS = {
 }
 
 export const PRIORITY_COLORS = {
-  low: "bg-accent/20 text-accent border border-accent/40",
-  medium: "bg-warning/20 text-warning border border-warning/40",
-  high: "bg-danger/20 text-danger border border-danger/40",
+  low: "text-accent border border-accent",
+  medium: "text-warning border border-warning",
+  high: "text-danger border border-danger",
 }
 
 export const STATUS_LABELS = {
@@ -17,9 +17,9 @@ export const STATUS_LABELS = {
 }
 
 export const STATUS_COLORS = {
-  pending: "bg-warning/20 text-warning border border-warning/40",
-  in_progress: "bg-accent/20 text-accent border border-accent/40",
-  done: "bg-success/20 text-success border border-success/40",
+  pending: "text-warning border border-warning",
+  in_progress: "text-accent border border-accent",
+  done: "text-success border border-success",
 }
 
 export const AGENT_COLORS: Record<string, string> = {
