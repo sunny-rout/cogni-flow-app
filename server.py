@@ -99,8 +99,15 @@ async def health():
 
 @app.post("/apps/{app_name}/users/{user_id}/sessions/{session_id}")
 async def create_session(app_name: str, user_id: str, session_id: str):
-    """Create a new session."""
+    """Create a new session, or return existing one if it already exists."""
     try:
+        existing = await session_service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if existing:
+            return {"session": existing}
         session = await session_service.create_session(
             app_name=app_name,
             user_id=user_id,
