@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom"
+import { NavLink, useNavigate } from "react-router-dom"
 import { useSession } from "../../hooks/useSession"
 
 const navItems = [
@@ -42,6 +42,7 @@ const navItems = [
 
 export default function Sidebar() {
   const { userId, sessions, createSession, switchSession, sessionId } = useSession()
+  const navigate = useNavigate()
 
   return (
     <aside className="w-[220px] bg-surface border-r border-border flex flex-col h-screen fixed left-0 top-0 z-30">
@@ -77,7 +78,7 @@ export default function Sidebar() {
             {sessions.map((s) => (
               <button
                 key={s.id}
-                onClick={() => switchSession(s.id)}
+                onClick={() => { switchSession(s.id); navigate("/") }}
                 className={`w-full text-left px-3 py-2 rounded-lg text-xs font-mono transition-colors ${
                   s.id === sessionId
                     ? "bg-card text-text-primary"
