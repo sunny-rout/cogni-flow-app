@@ -143,6 +143,8 @@ curl -X POST http://localhost:8080/run_sse \
 | Notes | `GET/POST/PATCH/DELETE /api/notes`, `GET /api/notes/{id}`, `GET /api/notes/search/{keyword}` |
 | Events | `GET/POST/PATCH/DELETE /api/events`, `GET /api/events/{id}`, `GET /api/events/search/{keyword}` |
 
+> **Note:** The Events page fetches all events once on load. The "Upcoming" / "All" filter tabs and sorting are handled entirely on the frontend using in-memory filter and sort — no additional API calls are made when switching tabs.
+
 ## Natural Language Date Parsing
 
 | Input | Output |
