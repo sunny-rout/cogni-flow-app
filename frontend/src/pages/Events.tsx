@@ -181,7 +181,7 @@ export default function Events() {
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-text-primary text-sm truncate">{event.title}</h3>
                         {isUpcoming(event.start_time) && (
-                          <Badge text="Upcoming" colorClass="bg-accent" />
+                          <Badge text="Upcoming" colorClass="bg-accent/20 text-accent border border-accent/40" />
                         )}
                       </div>
                       <p className="text-xs text-success">

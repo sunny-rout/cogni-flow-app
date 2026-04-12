@@ -167,7 +167,7 @@ export default function Notes() {
                   {note.tags && note.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {note.tags.map((tag, idx) => (
-                        <Badge key={idx} text={tag} colorClass="bg-teal-700" />
+                        <Badge key={idx} text={tag} colorClass="bg-success/20 text-success border border-success/40" />
                       ))}
                     </div>
                   )}
