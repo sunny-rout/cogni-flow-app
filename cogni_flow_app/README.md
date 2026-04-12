@@ -111,7 +111,9 @@ cogni_flow_app/
 ## Setup
 
 ```bash
-pip install -r requirements.txt
+uv venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+uv pip install -r cogni_flow_app/requirements.txt
 ```
 
 Create `.env` in the project root (parent of `cogni_flow_app/`):

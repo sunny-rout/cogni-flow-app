@@ -54,8 +54,9 @@ CogniFlow/
 ### 1. Backend
 
 ```bash
-cd cogni_flow_app
-pip install -r requirements.txt
+uv venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+uv pip install -r cogni_flow_app/requirements.txt
 ```
 
 Create `.env` in the project root:
