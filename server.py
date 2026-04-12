@@ -24,8 +24,7 @@ app = FastAPI(title="CogniFlow API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list(config.allowed_origins),
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -65,9 +64,13 @@ async def health():
     response_model=SessionResponse,
 )
 async def create_session(app_name: str, user_id: str, session_id: str):
-    session_service.create_session(
+    existing = await session_service.get_session(
         app_name=app_name, user_id=user_id, session_id=session_id
     )
+    if not existing:
+        await session_service.create_session(
+            app_name=app_name, user_id=user_id, session_id=session_id
+        )
     return SessionResponse.ok(
         data=SessionData(session_id=session_id, user_id=user_id, status="created"),
         message="Session created",
@@ -77,7 +80,7 @@ async def create_session(app_name: str, user_id: str, session_id: str):
 @app.get("/apps/{app_name}/users/{user_id}/sessions")
 async def list_sessions(app_name: str, user_id: str):
     return ApiResponse.ok(
-        data=session_service.list_sessions(app_name=app_name, user_id=user_id)
+        data=await session_service.list_sessions(app_name=app_name, user_id=user_id)
     )
 
 
@@ -85,6 +88,18 @@ async def list_sessions(app_name: str, user_id: str):
 async def run_sse(request: ChatRequest):
     async def stream():
         try:
+            existing = await session_service.get_session(
+                app_name=request.app_name,
+                user_id=request.user_id,
+                session_id=request.session_id,
+            )
+            if not existing:
+                await session_service.create_session(
+                    app_name=request.app_name,
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                )
+
             content = Content(
                 role="user",
                 parts=[Part(text=request.new_message.parts[0].text)],
@@ -94,9 +109,14 @@ async def run_sse(request: ChatRequest):
                 session_id=request.session_id,
                 new_message=content,
             ):
-                yield f"data: {json.dumps(event.model_dump())}\n\n"
+                yield f"data: {event.model_dump_json()}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            error_event = {
+                "author": "system",
+                "content": {"role": "model", "parts": [{"text": f"Error: {str(e)}"}]},
+                "turn_complete": True,
+            }
+            yield f"data: {json.dumps(error_event)}\n\n"
 
     return StreamingResponse(
         stream(),

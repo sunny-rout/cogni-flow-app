@@ -28,11 +28,8 @@ def _load() -> AppConfig:
         data_dir=os.path.join(os.path.dirname(__file__), "data"),
         app_name="cogni_flow_app",
         default_user_id="user_03011315",
-        allowed_origins=(
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:5174",
+        allowed_origins=tuple(
+            os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174").split(",")
         ),
     )
 
