@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { chatClient } from "../services/chatClient"
 import { streamHandler } from "../services/streamHandler"
@@ -10,7 +10,6 @@ import type { ChatMessage } from "../types"
 interface ChatContextType {
   messages: ChatMessage[]
   isStreaming: boolean
-  isLoadingHistory: boolean
   sendMessage: (userId: string, sessionId: string, text: string) => void
 }
 
@@ -19,18 +18,15 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined)
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { userId, sessionId } = useSession()
   const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({})
-  const [loadedSessions, setLoadedSessions] = useState<Set<string>>(new Set())
   const [isStreaming, setIsStreaming] = useState(false)
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const initializedSessions = useRef<Set<string>>(new Set())
 
   const messages = messagesBySession[sessionId] ?? []
 
   useEffect(() => {
     if (!sessionId || !userId) return
-    if (loadedSessions.has(sessionId)) return
-
-    setLoadedSessions((prev) => new Set(prev).add(sessionId))
-    setIsLoadingHistory(true)
+    if (initializedSessions.current.has(sessionId)) return
+    initializedSessions.current.add(sessionId)
 
     const stored = storage.messages.getBySession(sessionId)
     if (stored.length > 0) {
@@ -43,8 +39,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }))
       setMessagesBySession((prev) => ({ ...prev, [sessionId]: loaded }))
     }
-
-    setIsLoadingHistory(false)
   }, [sessionId, userId])
 
   const setMessages = (sessionKey: string, updater: (prev: ChatMessage[]) => ChatMessage[]) => {
@@ -130,7 +124,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ChatContext.Provider value={{ messages, isStreaming, isLoadingHistory, sendMessage }}>
+    <ChatContext.Provider value={{ messages, isStreaming, sendMessage }}>
       {children}
     </ChatContext.Provider>
   )

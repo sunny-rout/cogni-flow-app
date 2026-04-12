@@ -6,7 +6,7 @@ import { useSession } from "../hooks/useSession"
 import { getAgentColor } from "../utils"
 
 export default function Chat() {
-  const { messages, isStreaming, isLoadingHistory, sendMessage } = useChat()
+  const { messages, isStreaming, sendMessage } = useChat()
   const { userId, sessionId } = useSession()
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -33,17 +33,7 @@ export default function Chat() {
     <Layout title="Chat">
       <div className="flex flex-col h-full">
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-          {isLoadingHistory && (
-            <div className="flex flex-col items-center justify-center h-full min-h-64 text-center">
-              <div className="flex items-center gap-2 text-muted text-sm">
-                <span className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
-            </div>
-          )}
-
-          {messages.length === 0 && !isStreaming && !isLoadingHistory && (
+          {messages.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center h-full min-h-64 text-center">
               <div className="text-5xl mb-4 opacity-40">⚡</div>
               <p className="text-muted font-medium">Start a conversation with CogniFlow</p>
