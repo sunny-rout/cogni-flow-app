@@ -44,6 +44,7 @@ export interface SSEEvent {
     parts: Array<{ text?: string }>
   }
   author?: string
+  turn_complete?: boolean
   turnComplete?: boolean
   partial?: boolean
 }

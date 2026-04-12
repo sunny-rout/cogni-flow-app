@@ -74,6 +74,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     let finalText = ""
     let finalAuthor = "assistant"
 
+    const clearStreaming = (fallbackText?: string) => {
+      setMessages(sessionId, (prev) => {
+        const updated = [...prev]
+        const last = updated[updated.length - 1]
+        if (last && last.role === "model") {
+          updated[updated.length - 1] = {
+            ...last,
+            isStreaming: false,
+            text: last.text || fallbackText || "",
+          }
+        }
+        return updated
+      })
+      setIsStreaming(false)
+    }
+
     try {
       const stream = await chatClient.sendMessage(userId, sessionId, text)
 
@@ -101,25 +117,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           })
         },
         onComplete: () => {
-          setMessages(sessionId, (prev) => {
-            const updated = [...prev]
-            const last = updated[updated.length - 1]
-            if (last && last.role === "model") {
-              updated[updated.length - 1] = { ...last, isStreaming: false }
-            }
-            return updated
-          })
+          clearStreaming()
           const now = new Date().toISOString()
           storage.messages.create({ id: assistantMsgId, session_id: sessionId, role: "model", content: finalText, agent_name: finalAuthor, created_at: now })
           storage.sessions.update(sessionId, { updated_at: now })
-          setIsStreaming(false)
         },
         onError: () => {
-          setIsStreaming(false)
+          clearStreaming("Something went wrong. Please try again.")
         },
       })
     } catch {
-      setIsStreaming(false)
+      clearStreaming("Something went wrong. Please try again.")
     }
   }
 

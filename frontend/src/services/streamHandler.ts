@@ -12,13 +12,19 @@ class StreamHandler {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
     let fullText = ""
+    let buffer = ""
 
     try {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
+
+        const chunk = lines.join("\n")
         const events = sseParser.parse(chunk)
 
         for (const event of events) {

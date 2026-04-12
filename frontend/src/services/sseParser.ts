@@ -25,7 +25,7 @@ class SSEParser {
   }
 
   isTurnComplete(event: SSEEvent): boolean {
-    return event.turnComplete === true
+    return event.turn_complete === true || event.turnComplete === true
   }
 }
 
