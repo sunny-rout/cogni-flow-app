@@ -16,11 +16,12 @@ class RestClient {
     if (!response.ok) {
       throw new Error(`Request failed: ${response.status} ${response.statusText}`)
     }
-    return response.json() as Promise<T>
+    const json = await response.json()
+    return (json && "data" in json ? json.data : json) as T
   }
 
   async getTasks(status?: string): Promise<Task[]> {
-    const query = status ? `?status=${encodeURIComponent(status)}` : ""
+    const query = status ? `/status/${encodeURIComponent(status)}` : ""
     return this.request<Task[]>(`/api/tasks${query}`)
   }
 
