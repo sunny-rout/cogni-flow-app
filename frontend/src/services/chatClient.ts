@@ -29,6 +29,18 @@ class ChatClient {
     return response.json() as Promise<Session[]>
   }
 
+  async getSessionHistory(userId: string, sessionId: string): Promise<Array<{ role: string; text: string; author?: string; timestamp?: string }>> {
+    const response = await fetch(
+      `${this.baseUrl}/apps/${CONFIG.APP_NAME}/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}/history`,
+      { headers: { "Content-Type": "application/json" } }
+    )
+    if (!response.ok) {
+      throw new Error(`Failed to get session history: ${response.status}`)
+    }
+    const data = await response.json() as { messages: Array<{ role: string; text: string; author?: string; timestamp?: string }> }
+    return data.messages
+  }
+
   async sendMessage(userId: string, sessionId: string, text: string): Promise<ReadableStream> {
     const response = await fetch(`${this.baseUrl}/run_sse`, {
       method: "POST",

@@ -126,6 +126,66 @@ async def get_sessions(app_name: str, user_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/apps/{app_name}/users/{user_id}/sessions/{session_id}/history")
+async def get_session_history(app_name: str, user_id: str, session_id: str):
+    """Get message history for a session."""
+    try:
+        session = await session_service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        messages = []
+        if hasattr(session, "events") and session.events:
+            for event in session.events:
+                if not hasattr(event, "content") or not event.content:
+                    continue
+                content = event.content
+                text = None
+                if isinstance(content, str):
+                    text = content
+                elif hasattr(content, "parts") and content.parts:
+                    parts_text = ""
+                    for part in content.parts:
+                        if hasattr(part, "text") and part.text:
+                            parts_text += part.text
+                    text = parts_text if parts_text else None
+                elif hasattr(content, "text"):
+                    text = content.text
+
+                if not text:
+                    continue
+
+                role = "user"
+                if hasattr(event, "author") and event.author:
+                    role = "user" if event.author == user_id else "model"
+
+                author = None
+                if role == "model" and hasattr(event, "author") and event.author:
+                    author = event.author
+
+                timestamp = None
+                if hasattr(event, "timestamp") and event.timestamp:
+                    timestamp = str(event.timestamp)
+
+                messages.append({
+                    "role": role,
+                    "text": text,
+                    "author": author,
+                    "timestamp": timestamp,
+                })
+
+        return {"messages": messages}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get session history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def generate_events(request: ChatRequest):
     """Generator for SSE events."""
     try:

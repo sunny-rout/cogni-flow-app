@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import { chatClient } from "../services/chatClient"
 import { streamHandler } from "../services/streamHandler"
@@ -9,17 +9,44 @@ import type { ChatMessage } from "../types"
 interface ChatContextType {
   messages: ChatMessage[]
   isStreaming: boolean
+  isLoadingHistory: boolean
   sendMessage: (userId: string, sessionId: string, text: string) => void
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined)
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const { sessionId } = useSession()
+  const { userId, sessionId } = useSession()
   const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({})
+  const [loadedSessions, setLoadedSessions] = useState<Set<string>>(new Set())
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
   const messages = messagesBySession[sessionId] ?? []
+
+  useEffect(() => {
+    if (!sessionId || !userId) return
+    if (loadedSessions.has(sessionId)) return
+
+    setLoadedSessions((prev) => new Set(prev).add(sessionId))
+    setIsLoadingHistory(true)
+
+    chatClient.getSessionHistory(userId, sessionId).then((history) => {
+      if (history.length > 0) {
+        const loaded: ChatMessage[] = history.map((m) => ({
+          id: generateId(),
+          role: m.role as "user" | "model",
+          text: m.text,
+          author: m.author,
+          timestamp: m.timestamp ?? new Date().toISOString(),
+        }))
+        setMessagesBySession((prev) => ({ ...prev, [sessionId]: loaded }))
+      }
+    }).catch(() => {
+    }).finally(() => {
+      setIsLoadingHistory(false)
+    })
+  }, [sessionId, userId])
 
   const setMessages = (sessionKey: string, updater: (prev: ChatMessage[]) => ChatMessage[]) => {
     setMessagesBySession((allSessions) => ({
@@ -93,7 +120,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ChatContext.Provider value={{ messages, isStreaming, sendMessage }}>
+    <ChatContext.Provider value={{ messages, isStreaming, isLoadingHistory, sendMessage }}>
       {children}
     </ChatContext.Provider>
   )
