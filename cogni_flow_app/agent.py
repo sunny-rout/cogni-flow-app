@@ -14,7 +14,7 @@ def _now() -> str:
 
 
 root_agent = Agent(
-    name="multi_agent_app",
+    name=config.app_name,
     model=config.model,
     description="CogniFlow root agent — routes to task, notes, or schedule agents.",
     instruction=f"""You are CogniFlow, an AI-powered personal productivity assistant.

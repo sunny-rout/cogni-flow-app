@@ -11,7 +11,7 @@ class NewMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    app_name: str = Field(..., description="Must be 'multi_agent_app'")
+    app_name: str = Field(..., description="Must be 'cogni_flow_app'")
     user_id: str = Field(..., min_length=1)
     session_id: str = Field(..., min_length=1)
     new_message: NewMessage

@@ -1,4 +1,8 @@
 import { streamChat } from '../api/cogniflow';
+import { CONFIG } from '../config/env';
+
+const { APP_NAME }  = CONFIG;
+
 
 export async function sendMessage(
   userId: string,
@@ -10,7 +14,7 @@ export async function sendMessage(
 
     streamChat(
       {
-        app_name: 'multi_agent_app',
+        app_name: APP_NAME,
         user_id: userId,
         session_id: sessionId,
         new_message: {

@@ -26,8 +26,8 @@ def _load() -> AppConfig:
         google_credentials=os.getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
         port=int(os.getenv("PORT", "8080")),
         data_dir=os.path.join(os.path.dirname(__file__), "data"),
-        app_name="multi_agent_app",
-        default_user_id="user",
+        app_name="cogni_flow_app",
+        default_user_id="user_03011315",
         allowed_origins=(
             "http://localhost:5173",
             "http://localhost:5174",

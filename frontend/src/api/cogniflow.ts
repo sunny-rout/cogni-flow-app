@@ -1,6 +1,8 @@
 import type { ChatRequest } from '../types';
+import { CONFIG } from '../config/env';
 
-const BASE_URL = 'http://localhost:8080';
+const { BASE_URL } = CONFIG;
+const { APP_NAME }  = CONFIG;
 
 export async function streamChat(
   request: ChatRequest,
@@ -63,7 +65,7 @@ export async function streamChat(
 
 export async function createSession(userId: string, sessionId: string): Promise<void> {
   const response = await fetch(
-    `${BASE_URL}/apps/multi_agent_app/users/${userId}/sessions/${sessionId}`,
+    `${BASE_URL}/apps/${APP_NAME}/users/${userId}/sessions/${sessionId}`,
     {
       method: 'POST',
       headers: {
@@ -79,7 +81,7 @@ export async function createSession(userId: string, sessionId: string): Promise<
 
 export async function getSessions(userId: string): Promise<any[]> {
   const response = await fetch(
-    `${BASE_URL}/apps/multi_agent_app/users/${userId}/sessions`,
+    `${BASE_URL}/apps/${APP_NAME}/users/${userId}/sessions`,
     {
       method: 'GET',
       headers: {
