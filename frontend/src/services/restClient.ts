@@ -85,8 +85,10 @@ class RestClient {
   }
 
   async getEvents(fromDate?: string): Promise<Event[]> {
-    const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ""
-    return this.request<Event[]>(`/api/events${query}`)
+    if (fromDate) {
+      return this.request<Event[]>(`/api/events/upcoming?from_date=${encodeURIComponent(fromDate)}`)
+    }
+    return this.request<Event[]>("/api/events/")
   }
 
   async getEvent(id: number): Promise<Event> {
